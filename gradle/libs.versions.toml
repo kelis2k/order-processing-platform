@@ -1,0 +1,45 @@
+[versions]
+spring-boot         = "3.4.5"
+spring-dependency   = "1.1.5"
+kafka               = "3.7.0"
+avro                = "1.11.3"
+confluent           = "7.6.0"
+grpc                = "1.63.0"
+grpc-spring         = "3.1.0.RELEASE"
+protobuf            = "3.25.3"
+mapstruct           = "1.5.5.Final"
+lombok              = "1.18.32"
+jjwt                = "0.12.5"
+testcontainers      = "1.19.8"
+
+[libraries]
+spring-boot-starter-web         = { module = "org.springframework.boot:spring-boot-starter-web" }
+spring-boot-starter-security    = { module = "org.springframework.boot:spring-boot-starter-security" }
+spring-boot-starter-data-jpa    = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
+spring-boot-starter-data-mongo  = { module = "org.springframework.boot:spring-boot-starter-data-mongodb" }
+spring-boot-starter-data-redis  = { module = "org.springframework.boot:spring-boot-starter-data-redis" }
+spring-boot-starter-actuator    = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+spring-boot-starter-mail        = { module = "org.springframework.boot:spring-boot-starter-mail" }
+spring-boot-starter-validation  = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-kafka                    = { module = "org.springframework.kafka:spring-kafka" }
+avro                            = { module = "org.apache.avro:avro", version.ref = "avro" }
+kafka-avro-serializer           = { module = "io.confluent:kafka-avro-serializer", version.ref = "confluent" }
+grpc-netty                      = { module = "io.grpc:grpc-netty-shaded", version.ref = "grpc" }
+grpc-stub                       = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
+grpc-protobuf                   = { module = "io.grpc:grpc-protobuf", version.ref = "grpc" }
+grpc-spring                     = { module = "net.devh:grpc-spring-boot-starter", version.ref = "grpc-spring" }
+protobuf-java                   = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+mapstruct                       = { module = "org.mapstruct:mapstruct", version.ref = "mapstruct" }
+mapstruct-processor             = { module = "org.mapstruct:mapstruct-processor", version.ref = "mapstruct" }
+lombok                          = { module = "org.projectlombok:lombok", version.ref = "lombok" }
+jjwt-api                        = { module = "io.jsonwebtoken:jjwt-api", version.ref = "jjwt" }
+jjwt-impl                       = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
+jjwt-jackson                    = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
+testcontainers-bom              = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
+testcontainers-junit            = { module = "org.testcontainers:junit-jupiter" }
+testcontainers-kafka            = { module = "org.testcontainers:kafka" }
+testcontainers-postgres         = { module = "org.testcontainers:postgresql" }
+
+[plugins]
+spring-boot         = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spring-dependency   = { id = "io.spring.dependency-management", version.ref = "spring-dependency" }
