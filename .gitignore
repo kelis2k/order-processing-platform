@@ -46,3 +46,6 @@ bin/
 ### Internal (не для репозитория) ###
 docs/
 CLAUDE.md
+
+### Claude Code (локальное состояние) ###
+.claude/
