@@ -1,0 +1,27 @@
+# VCS
+.git
+.gitignore
+
+# Gradle build cache и артефакты
+.gradle
+**/.gradle
+build
+**/build
+# Исключение: bootJar собирается на хосте и копируется в Docker-образ (см. Dockerfile)
+!services/product-service/build/libs/product-service.jar
+
+# IDE
+.idea
+*.iml
+*.iws
+*.ipr
+
+# Claude Code / internal
+.claude
+docs
+
+# OS
+.DS_Store
+
+# Прочее
+*.md

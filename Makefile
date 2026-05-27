@@ -3,14 +3,17 @@ COMPOSE := docker compose
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev-up dev-down dev-logs dev-reset k3d-up inject-secrets
+.PHONY: help build-jars dev-up dev-down dev-logs dev-reset k3d-up inject-secrets
 
 help: ## Список доступных команд
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
-dev-up: ## Поднять весь стек локально (detached)
-	$(COMPOSE) up -d
+build-jars: ## Собрать bootJar'ы сервисов на хосте (зависимости через хостовый Gradle-кэш)
+	./gradlew :services:product-service:bootJar
+
+dev-up: build-jars ## Поднять весь стек локально (detached). Пересобирает JAR и Docker-образы
+	$(COMPOSE) up -d --build
 
 dev-down: ## Остановить стек (данные в volumes сохраняются)
 	$(COMPOSE) down

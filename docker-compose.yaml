@@ -279,6 +279,37 @@ services:
     networks: [backend]
 
   # ---------------------------------------------------------------------------
+  # product-service — каталог товаров (Spring Boot, MongoDB).
+  # Собирается из исходников monorepo при docker compose up --build.
+  # ---------------------------------------------------------------------------
+  product-service:
+    build:
+      context: .
+      dockerfile: services/product-service/Dockerfile
+    container_name: product-service
+    depends_on:
+      mongo:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      MONGO_URI: mongodb://mongo:27017/product_db
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:29092,kafka-2:29092,kafka-3:29092
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8083/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks: [backend]
+
+  # ---------------------------------------------------------------------------
   # MailHog — фейковый SMTP + веб-инбокс для notification-service.
   # ---------------------------------------------------------------------------
   mailhog:
