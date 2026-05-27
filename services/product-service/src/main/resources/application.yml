@@ -5,6 +5,22 @@ spring:
   application:
     name: product-service
 
+  data:
+    mongodb:
+      # В Docker переопределяется env var MONGO_URI (см. docker-compose.yaml)
+      uri: ${MONGO_URI:mongodb://localhost:27017/product_db}
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
+
+# gRPC-сервер отключён до реализации gRPC-контракта (этап 6)
+grpc:
+  server:
+    port: -1
+
 management:
   endpoints:
     web:
