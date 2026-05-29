@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.spring.boot)
 }
 
+ext["testcontainers.version"] = libs.versions.testcontainers.get()
+
 dependencies {
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.data.mongo)
@@ -27,8 +29,8 @@ dependencies {
 }
 
 tasks.withType<Test> {
-    environment("DOCKER_HOST", "tcp://localhost:2375")
-    systemProperty("DOCKER_API_VERSION", "1.47")
+    environment("DOCKER_HOST", "unix:///var/run/docker.sock")
+    environment("DOCKER_API_VERSION", "1.47")
     environment("TESTCONTAINERS_RYUK_DISABLED", "true")
     environment("HTTP_PROXY", "")
     environment("HTTPS_PROXY", "")

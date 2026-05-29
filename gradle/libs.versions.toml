@@ -11,7 +11,7 @@ protobuf            = "3.25.3"
 mapstruct           = "1.5.5.Final"
 lombok              = "1.18.32"
 jjwt                = "0.12.5"
-testcontainers      = "1.19.8"
+testcontainers      = "1.21.4"
 
 [libraries]
 spring-boot-starter-web         = { module = "org.springframework.boot:spring-boot-starter-web" }
