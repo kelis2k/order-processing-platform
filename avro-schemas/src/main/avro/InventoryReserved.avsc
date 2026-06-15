@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "InventoryReserved",
+  "namespace": "ru.potekhincode.avro",
+  "fields": [
+    {"name": "orderId",   "type": "string"},
+    {"name": "productId", "type": "string"},
+    {"name": "quantity",  "type": "int"},
+    {"name": "success",   "type": "boolean"},
+    {"name": "reason",    "type": ["null", "string"], "default": null},
+    {"name": "timestamp", "type": {"type": "long", "logicalType": "timestamp-millis"}}
+  ]
+}

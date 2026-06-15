@@ -11,6 +11,7 @@ dependencies {
     implementation(libs.grpc.stub)
     implementation(libs.grpc.protobuf)
     implementation(libs.protobuf.java)
+    implementation("javax.annotation:javax.annotation-api:1.3.2")
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
 }
