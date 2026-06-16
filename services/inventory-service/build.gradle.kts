@@ -2,10 +2,13 @@ plugins {
     alias(libs.plugins.spring.boot)
 }
 
+ext["testcontainers.version"] = libs.versions.testcontainers.get()
+
 dependencies {
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.data.jpa)
     implementation(libs.spring.boot.starter.actuator)
+    implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.kafka)
     implementation(libs.kafka.avro.serializer)
     implementation(libs.avro)
@@ -18,4 +21,23 @@ dependencies {
     annotationProcessor(libs.lombok)
     annotationProcessor(libs.mapstruct.processor)
     runtimeOnly("org.postgresql:postgresql")
+    runtimeOnly("org.flywaydb:flyway-core")
+    runtimeOnly("org.flywaydb:flyway-database-postgresql")
+
+    testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(libs.testcontainers.junit)
+    testImplementation(libs.testcontainers.kafka)
+    testImplementation(libs.testcontainers.postgres)
+    testImplementation(libs.grpc.inprocess)
+    testImplementation(libs.spring.boot.starter.test)
+}
+
+tasks.withType<Test> {
+    environment("DOCKER_HOST", "unix:///var/run/docker.sock")
+    environment("DOCKER_API_VERSION", "1.47")
+    environment("TESTCONTAINERS_RYUK_DISABLED", "true")
+    environment("HTTP_PROXY", "")
+    environment("HTTPS_PROXY", "")
+    environment("http_proxy", "")
+    environment("https_proxy", "")
 }

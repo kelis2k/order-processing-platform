@@ -1,0 +1,153 @@
+package ru.potekhincode.inventory.service;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import ru.potekhincode.inventory.exception.InsufficientStockException;
+import ru.potekhincode.inventory.model.Inventory;
+import ru.potekhincode.inventory.repository.InventoryRepository;
+import ru.potekhincode.inventory.service.impl.InventoryServiceImpl;
+
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class InventoryServiceImplTest {
+
+    private static final String ORDER_ID = "order-1";
+    private static final String PRODUCT_ID = "000000000000000000000001";
+    private static final int QUANTITY = 3;
+
+    @Mock
+    private InventoryRepository inventoryRepository;
+
+    @Mock
+    private InventoryTxOperations txOperations;
+
+    @InjectMocks
+    private InventoryServiceImpl inventoryService;
+
+    private Inventory inventory(int available) {
+        return Inventory.builder()
+                .id(1L)
+                .productId(PRODUCT_ID)
+                .available(available)
+                .reserved(0)
+                .version(0)
+                .build();
+    }
+
+    @Test
+    void checkAvailabilityReturnsTrueWhenEnoughStock() {
+        when(inventoryRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.of(inventory(10)));
+
+        assertThat(inventoryService.checkAvailability(PRODUCT_ID, QUANTITY)).isTrue();
+    }
+
+    @Test
+    void checkAvailabilityReturnsFalseWhenNotEnoughStock() {
+        when(inventoryRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.of(inventory(1)));
+
+        assertThat(inventoryService.checkAvailability(PRODUCT_ID, QUANTITY)).isFalse();
+    }
+
+    @Test
+    void checkAvailabilityReturnsFalseWhenProductMissing() {
+        when(inventoryRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.empty());
+
+        assertThat(inventoryService.checkAvailability(PRODUCT_ID, QUANTITY)).isFalse();
+    }
+
+    @Test
+    void getAvailableQuantityReturnsZeroWhenProductMissing() {
+        when(inventoryRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.empty());
+
+        assertThat(inventoryService.getAvailableQuantity(PRODUCT_ID)).isZero();
+    }
+
+    @Test
+    void getAvailableQuantityReturnsValueWhenPresent() {
+        when(inventoryRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.of(inventory(7)));
+
+        assertThat(inventoryService.getAvailableQuantity(PRODUCT_ID)).isEqualTo(7);
+    }
+
+    @Test
+    void reserveDelegatesToTransactionalOpsOnce() {
+        doNothing().when(txOperations).reserveOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
+
+        inventoryService.reserve(ORDER_ID, PRODUCT_ID, QUANTITY);
+
+        verify(txOperations, times(1)).reserveOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
+    }
+
+    @Test
+    void reservePropagatesInsufficientStockWithoutRetry() {
+        doThrow(new InsufficientStockException(PRODUCT_ID, QUANTITY, 0))
+                .when(txOperations).reserveOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
+
+        assertThatThrownBy(() -> inventoryService.reserve(ORDER_ID, PRODUCT_ID, QUANTITY))
+                .isInstanceOf(InsufficientStockException.class);
+
+        verify(txOperations, times(1)).reserveOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
+    }
+
+    @Test
+    void reserveRetriesOnOptimisticLockThenSucceeds() {
+        doThrow(new ObjectOptimisticLockingFailureException(Inventory.class, 1L))
+                .doThrow(new ObjectOptimisticLockingFailureException(Inventory.class, 1L))
+                .doNothing()
+                .when(txOperations).reserveOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
+
+        inventoryService.reserve(ORDER_ID, PRODUCT_ID, QUANTITY);
+
+        verify(txOperations, times(3)).reserveOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
+    }
+
+    @Test
+    void reserveFailsAfterExhaustingRetries() {
+        doThrow(new ObjectOptimisticLockingFailureException(Inventory.class, 1L))
+                .when(txOperations).reserveOnce(anyString(), anyString(), anyInt());
+
+        assertThatThrownBy(() -> inventoryService.reserve(ORDER_ID, PRODUCT_ID, QUANTITY))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("reserve");
+
+        verify(txOperations, times(3)).reserveOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
+    }
+
+    @Test
+    void releaseRetriesOnOptimisticLockThenSucceeds() {
+        doThrow(new ObjectOptimisticLockingFailureException(Inventory.class, 1L))
+                .doNothing()
+                .when(txOperations).releaseOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
+
+        inventoryService.release(ORDER_ID, PRODUCT_ID, QUANTITY);
+
+        verify(txOperations, times(2)).releaseOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
+    }
+
+    @Test
+    void releaseFailsAfterExhaustingRetries() {
+        doThrow(new ObjectOptimisticLockingFailureException(Inventory.class, 1L))
+                .when(txOperations).releaseOnce(anyString(), anyString(), anyInt());
+
+        assertThatThrownBy(() -> inventoryService.release(ORDER_ID, PRODUCT_ID, QUANTITY))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("release");
+
+        verify(txOperations, times(3)).releaseOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
+    }
+}

@@ -1,5 +1,6 @@
 [versions]
 spring-boot         = "3.4.5"
+springdoc           = "2.8.3"
 spring-dependency   = "1.1.5"
 kafka               = "3.7.0"
 avro                = "1.11.3"
@@ -10,10 +11,11 @@ protobuf            = "3.25.3"
 mapstruct           = "1.5.5.Final"
 lombok              = "1.18.32"
 jjwt                = "0.12.5"
-testcontainers      = "1.19.8"
+testcontainers      = "1.21.4"
 
 [libraries]
 spring-boot-starter-web         = { module = "org.springframework.boot:spring-boot-starter-web" }
+springdoc-webmvc                = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
 spring-boot-starter-security    = { module = "org.springframework.boot:spring-boot-starter-security" }
 spring-boot-starter-data-jpa    = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
 spring-boot-starter-data-mongo  = { module = "org.springframework.boot:spring-boot-starter-data-mongodb" }
@@ -21,6 +23,7 @@ spring-boot-starter-data-redis  = { module = "org.springframework.boot:spring-bo
 spring-boot-starter-actuator    = { module = "org.springframework.boot:spring-boot-starter-actuator" }
 spring-boot-starter-mail        = { module = "org.springframework.boot:spring-boot-starter-mail" }
 spring-boot-starter-validation  = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-starter-test        = { module = "org.springframework.boot:spring-boot-starter-test" }
 spring-kafka                    = { module = "org.springframework.kafka:spring-kafka" }
 avro                            = { module = "org.apache.avro:avro", version.ref = "avro" }
 kafka-avro-serializer           = { module = "io.confluent:kafka-avro-serializer", version.ref = "confluent" }
@@ -28,6 +31,7 @@ grpc-netty                      = { module = "io.grpc:grpc-netty-shaded", versio
 grpc-stub                       = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
 grpc-protobuf                   = { module = "io.grpc:grpc-protobuf", version.ref = "grpc" }
 grpc-spring                     = { module = "net.devh:grpc-spring-boot-starter", version.ref = "grpc-spring" }
+grpc-inprocess                  = { module = "io.grpc:grpc-inprocess", version.ref = "grpc" }
 protobuf-java                   = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
 mapstruct                       = { module = "org.mapstruct:mapstruct", version.ref = "mapstruct" }
 mapstruct-processor             = { module = "org.mapstruct:mapstruct-processor", version.ref = "mapstruct" }
@@ -39,6 +43,7 @@ testcontainers-bom              = { module = "org.testcontainers:testcontainers-
 testcontainers-junit            = { module = "org.testcontainers:junit-jupiter" }
 testcontainers-kafka            = { module = "org.testcontainers:kafka" }
 testcontainers-postgres         = { module = "org.testcontainers:postgresql" }
+testcontainers-mongodb = { module = "org.testcontainers:mongodb" }
 
 [plugins]
 spring-boot         = { id = "org.springframework.boot", version.ref = "spring-boot" }
