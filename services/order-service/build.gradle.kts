@@ -19,4 +19,6 @@ dependencies {
     annotationProcessor(libs.lombok)
     annotationProcessor(libs.mapstruct.processor)
     runtimeOnly("org.postgresql:postgresql")
+    runtimeOnly("org.flywaydb:flyway-core")
+    runtimeOnly("org.flywaydb:flyway-database-postgresql")
 }
