@@ -5,8 +5,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.potekhincode.order.client.InventoryClient;
+import ru.potekhincode.order.client.UnavailableItem;
 import ru.potekhincode.order.dto.request.CreateOrderRequest;
 import ru.potekhincode.order.dto.response.OrderResponse;
+import ru.potekhincode.order.exception.InsufficientStockException;
 import ru.potekhincode.order.exception.InvalidStatusTransitionException;
 import ru.potekhincode.order.exception.OrderNotFoundException;
 import ru.potekhincode.order.mapper.OrderMapper;
@@ -16,6 +19,7 @@ import ru.potekhincode.order.model.OrderStatus;
 import ru.potekhincode.order.repository.OrderRepository;
 import ru.potekhincode.order.service.OrderService;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -24,10 +28,16 @@ public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper;
+    private final InventoryClient inventoryClient;
 
     @Override
     @Transactional
     public OrderResponse create(CreateOrderRequest request) {
+        List<UnavailableItem> unavailable = inventoryClient.checkAvailability(request.items());
+        if (!unavailable.isEmpty()) {
+            throw new InsufficientStockException(unavailable);
+        }
+
         Order order = new Order();
         order.setUserId(request.userId());
         order.setStatus(OrderStatus.NEW);
