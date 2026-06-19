@@ -6,9 +6,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import ru.potekhincode.order.client.InventoryClient;
+import ru.potekhincode.order.client.UnavailableItem;
 import ru.potekhincode.order.dto.request.CreateOrderRequest;
 import ru.potekhincode.order.dto.request.OrderItemRequest;
 import ru.potekhincode.order.dto.response.OrderResponse;
+import ru.potekhincode.order.exception.InsufficientStockException;
 import ru.potekhincode.order.exception.InvalidStatusTransitionException;
 import ru.potekhincode.order.exception.OrderNotFoundException;
 import ru.potekhincode.order.mapper.OrderMapper;
@@ -25,6 +28,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,6 +47,9 @@ class OrderServiceImplTest {
     @Mock
     private OrderMapper orderMapper;
 
+    @Mock
+    private InventoryClient inventoryClient;
+
     @InjectMocks
     private OrderServiceImpl orderService;
 
@@ -54,6 +61,7 @@ class OrderServiceImplTest {
         mappedItem.setProductId(PRODUCT_ID);
         mappedItem.setQuantity(QUANTITY);
 
+        when(inventoryClient.checkAvailability(request.items())).thenReturn(List.of()); // дефицита нет
         when(orderMapper.toEntity(any(OrderItemRequest.class))).thenReturn(mappedItem);
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
         when(orderMapper.toResponse(any(Order.class)))
@@ -61,6 +69,7 @@ class OrderServiceImplTest {
 
         OrderResponse result = orderService.create(request);
 
+        verify(inventoryClient).checkAvailability(request.items()); // склад опрошен перед сохранением
         ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
         verify(orderRepository).save(captor.capture());
         Order saved = captor.getValue();
@@ -70,6 +79,20 @@ class OrderServiceImplTest {
         assertThat(saved.getItems()).hasSize(1);
         assertThat(saved.getItems().get(0).getOrder()).isSameAs(saved); // addItem связал обе стороны
         assertThat(result.status()).isEqualTo(OrderStatus.NEW);
+    }
+
+    @Test
+    void shouldRejectAndNotSaveWhenStockInsufficient() {
+        CreateOrderRequest request =
+                new CreateOrderRequest(USER_ID, List.of(new OrderItemRequest(PRODUCT_ID, QUANTITY)));
+        when(inventoryClient.checkAvailability(request.items()))
+                .thenReturn(List.of(new UnavailableItem(PRODUCT_ID, QUANTITY, 1))); // просили 2, есть 1
+
+        assertThatThrownBy(() -> orderService.create(request))
+                .isInstanceOf(InsufficientStockException.class)
+                .hasMessageContaining(PRODUCT_ID);
+
+        verify(orderRepository, never()).save(any()); // ← инвариант: заказ не создаётся
     }
 
     @Test
