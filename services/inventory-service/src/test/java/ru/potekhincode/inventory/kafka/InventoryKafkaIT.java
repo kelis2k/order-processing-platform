@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import ru.potekhincode.avro.InventoryReserved;
 import ru.potekhincode.avro.OrderCreated;
+import ru.potekhincode.avro.OrderLineItem;
 import ru.potekhincode.inventory.AbstractIntegrationTest;
 import ru.potekhincode.inventory.model.Inventory;
 import ru.potekhincode.inventory.repository.InventoryRepository;
@@ -71,7 +72,8 @@ class InventoryKafkaIT extends AbstractIntegrationTest {
 
         InventoryReserved event = awaitInventoryReserved(orderId);
         assertThat(event.getSuccess()).isTrue();
-        assertThat(event.getProductId()).hasToString(SUCCESS_PRODUCT_ID);
+        assertThat(event.getItems()).hasSize(1);
+        assertThat(event.getItems().get(0).getProductId()).hasToString(SUCCESS_PRODUCT_ID);
 
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
             Inventory updated = inventoryRepository.findByProductId(SUCCESS_PRODUCT_ID).orElseThrow();
@@ -109,8 +111,11 @@ class InventoryKafkaIT extends AbstractIntegrationTest {
         OrderCreated event = OrderCreated.newBuilder()
                 .setOrderId(orderId)
                 .setUserId("user-1")
-                .setProductId(productId)
-                .setQuantity(quantity)
+                .setItems(List.of(
+                        OrderLineItem.newBuilder()
+                                .setProductId(productId)
+                                .setQuantity(quantity)
+                                .build()))
                 .setTimestamp(Instant.now())
                 .build();
         try (Producer<String, OrderCreated> producer = new KafkaProducer<>(producerProps())) {

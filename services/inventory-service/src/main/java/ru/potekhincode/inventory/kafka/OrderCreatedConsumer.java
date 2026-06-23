@@ -6,11 +6,13 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import ru.potekhincode.avro.InventoryReserved;
 import ru.potekhincode.avro.OrderCreated;
+import ru.potekhincode.avro.ReservedItem;
 import ru.potekhincode.inventory.exception.InsufficientStockException;
-import ru.potekhincode.inventory.kafka.InventoryEventProducer;
 import ru.potekhincode.inventory.service.InventoryService;
+import ru.potekhincode.inventory.service.ReservationItem;
 
 import java.time.Instant;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -22,36 +24,37 @@ public class OrderCreatedConsumer {
 
     @KafkaListener(topics = "order.created", containerFactory = "kafkaListenerContainerFactory")
     public void handleOrderCreated(OrderCreated event) {
-        log.info("Received order.created: orderId={}, productId={}, quantity={}",
-                event.getOrderId(), event.getProductId(), event.getQuantity());
+        String orderId = event.getOrderId().toString();
+        List<ReservationItem> items = event.getItems().stream()
+                .map(i -> new ReservationItem(i.getProductId().toString(), i.getQuantity()))
+                .toList();
+        log.info("Received order.created: orderId={}, items={}", orderId, items.size());
 
         InventoryReserved result;
         try {
-            inventoryService.reserve(
-                    event.getOrderId(),
-                    event.getProductId(),
-                    event.getQuantity()
-            );
-            result = InventoryReserved.newBuilder()
-                    .setOrderId(event.getOrderId())
-                    .setProductId(event.getProductId())
-                    .setQuantity(event.getQuantity())
-                    .setSuccess(true)
-                    .setReason(null)
-                    .setTimestamp(Instant.now())
-                    .build();
+            inventoryService.reserve(orderId, items);
+            result = buildReserved(event, true, null);
         } catch (InsufficientStockException e) {
-            log.warn("Insufficient stock for orderId={}: {}", event.getOrderId(), e.getMessage());
-            result = InventoryReserved.newBuilder()
-                    .setOrderId(event.getOrderId())
-                    .setProductId(event.getProductId())
-                    .setQuantity(event.getQuantity())
-                    .setSuccess(false)
-                    .setReason(e.getMessage())
-                    .setTimestamp(Instant.now())
-                    .build();
+            log.warn("Insufficient stock for orderId={}: {}", orderId, e.getMessage());
+            result = buildReserved(event, false, e.getMessage());
         }
 
         eventProducer.publishInventoryReserved(result);
+    }
+
+    private InventoryReserved buildReserved(OrderCreated event, boolean success, String reason) {
+        List<ReservedItem> items = event.getItems().stream()
+                .map(i -> ReservedItem.newBuilder()
+                        .setProductId(i.getProductId())
+                        .setQuantity(i.getQuantity())
+                        .build())
+                .toList();
+        return InventoryReserved.newBuilder()
+                .setOrderId(event.getOrderId())
+                .setItems(items)
+                .setSuccess(success)
+                .setReason(reason)
+                .setTimestamp(Instant.now())
+                .build();
     }
 }

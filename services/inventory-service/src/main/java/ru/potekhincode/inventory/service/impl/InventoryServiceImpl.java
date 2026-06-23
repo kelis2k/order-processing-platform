@@ -8,6 +8,9 @@ import ru.potekhincode.inventory.model.Inventory;
 import ru.potekhincode.inventory.repository.InventoryRepository;
 import ru.potekhincode.inventory.service.InventoryService;
 import ru.potekhincode.inventory.service.InventoryTxOperations;
+import ru.potekhincode.inventory.service.ReservationItem;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -37,6 +40,11 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     public void reserve(String orderId, String productId, int quantity) {
         executeWithRetry(() -> txOperations.reserveOnce(orderId, productId, quantity), "reserve");
+    }
+
+    @Override
+    public void reserve(String orderId, List<ReservationItem> items) {
+        executeWithRetry(() -> txOperations.reserveAllOnce(orderId, items), "reserve");
     }
 
     @Override

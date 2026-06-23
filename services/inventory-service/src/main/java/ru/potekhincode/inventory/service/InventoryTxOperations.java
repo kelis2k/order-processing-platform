@@ -36,6 +36,28 @@ public class InventoryTxOperations {
         inventoryRepository.save(inventory);
     }
 
+    /**
+     * Атомарный резерв всех позиций заказа в ОДНОЙ транзакции (all-or-nothing).
+     * Нехватка любой позиции бросает {@link InsufficientStockException} → откат всей
+     * транзакции → ни одна позиция не зарезервирована. Optimistic-lock конфликт на commit
+     * откатывает весь батч; повтор обеспечивает {@code executeWithRetry} в сервисе.
+     */
+    @Transactional
+    public void reserveAllOnce(String orderId, java.util.List<ReservationItem> items) {
+        for (ReservationItem item : items) {
+            Inventory inventory = inventoryRepository.findByProductId(item.productId())
+                    .orElseThrow(() -> new InsufficientStockException(item.productId(), item.quantity(), 0));
+
+            if (inventory.getAvailable() < item.quantity()) {
+                throw new InsufficientStockException(item.productId(), item.quantity(), inventory.getAvailable());
+            }
+
+            inventory.setAvailable(inventory.getAvailable() - item.quantity());
+            inventory.setReserved(inventory.getReserved() + item.quantity());
+            inventoryRepository.save(inventory);
+        }
+    }
+
     @Transactional
     public void releaseOnce(String orderId, String productId, int quantity) {
         Inventory inventory = inventoryRepository.findByProductId(productId)

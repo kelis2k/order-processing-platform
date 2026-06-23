@@ -3,10 +3,19 @@
   "name": "OrderCreated",
   "namespace": "ru.potekhincode.avro",
   "fields": [
-    {"name": "orderId",    "type": "string"},
-    {"name": "userId",     "type": "string"},
-    {"name": "productId",  "type": "string"},
-    {"name": "quantity",   "type": "int"},
-    {"name": "timestamp",  "type": {"type": "long", "logicalType": "timestamp-millis"}}
+    {"name": "orderId", "type": "string"},
+    {"name": "userId",  "type": "string"},
+    {"name": "items", "type": {
+      "type": "array",
+      "items": {
+        "type": "record",
+        "name": "OrderLineItem",
+        "fields": [
+          {"name": "productId", "type": "string"},
+          {"name": "quantity",  "type": "int"}
+        ]
+      }
+    }},
+    {"name": "timestamp", "type": {"type": "long", "logicalType": "timestamp-millis"}}
   ]
 }

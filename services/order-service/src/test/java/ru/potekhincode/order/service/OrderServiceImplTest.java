@@ -14,11 +14,16 @@ import ru.potekhincode.order.dto.response.OrderResponse;
 import ru.potekhincode.order.exception.InsufficientStockException;
 import ru.potekhincode.order.exception.InvalidStatusTransitionException;
 import ru.potekhincode.order.exception.OrderNotFoundException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.potekhincode.order.mapper.OrderMapper;
 import ru.potekhincode.order.model.Order;
 import ru.potekhincode.order.model.OrderItem;
 import ru.potekhincode.order.model.OrderStatus;
+import ru.potekhincode.order.model.SagaState;
+import ru.potekhincode.order.model.SagaStatus;
 import ru.potekhincode.order.repository.OrderRepository;
+import ru.potekhincode.order.repository.OutboxRepository;
+import ru.potekhincode.order.repository.SagaStateRepository;
 import ru.potekhincode.order.service.impl.OrderServiceImpl;
 
 import java.util.List;
@@ -50,6 +55,15 @@ class OrderServiceImplTest {
     @Mock
     private InventoryClient inventoryClient;
 
+    @Mock
+    private OutboxRepository outboxRepository;
+
+    @Mock
+    private SagaStateRepository sagaStateRepository;
+
+    @Mock
+    private ObjectMapper objectMapper;
+
     @InjectMocks
     private OrderServiceImpl orderService;
 
@@ -63,7 +77,11 @@ class OrderServiceImplTest {
 
         when(inventoryClient.checkAvailability(request.items())).thenReturn(List.of()); // дефицита нет
         when(orderMapper.toEntity(any(OrderItemRequest.class))).thenReturn(mappedItem);
-        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
+            Order toSave = inv.getArgument(0);
+            toSave.setId(ORDER_ID); // БД присваивает UUID при flush; в юните имитируем
+            return toSave;
+        });
         when(orderMapper.toResponse(any(Order.class)))
                 .thenReturn(new OrderResponse(ORDER_ID, USER_ID, OrderStatus.NEW, null, List.of(), null));
 
@@ -79,6 +97,12 @@ class OrderServiceImplTest {
         assertThat(saved.getItems()).hasSize(1);
         assertThat(saved.getItems().get(0).getOrder()).isSameAs(saved); // addItem связал обе стороны
         assertThat(result.status()).isEqualTo(OrderStatus.NEW);
+
+        // сага стартует в AWAITING_RESERVATION, событие легло в outbox (та же транзакция)
+        ArgumentCaptor<SagaState> sagaCaptor = ArgumentCaptor.forClass(SagaState.class);
+        verify(sagaStateRepository).save(sagaCaptor.capture());
+        assertThat(sagaCaptor.getValue().getState()).isEqualTo(SagaStatus.AWAITING_RESERVATION);
+        verify(outboxRepository).save(any());
     }
 
     @Test
@@ -133,5 +157,50 @@ class OrderServiceImplTest {
         assertThatThrownBy(() -> orderService.transition(order, OrderStatus.SHIPPED))
                 .isInstanceOf(InvalidStatusTransitionException.class);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.NEW); // статус не изменился
+    }
+
+    @Test
+    void shouldMoveOrderAndSagaToReservedOnSuccess() {
+        SagaState saga = new SagaState();
+        saga.setOrderId(ORDER_ID);
+        saga.setState(SagaStatus.AWAITING_RESERVATION);
+        Order order = new Order();
+        order.setStatus(OrderStatus.NEW);
+
+        when(sagaStateRepository.findById(ORDER_ID)).thenReturn(Optional.of(saga));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        orderService.onInventoryReserved(ORDER_ID, true);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.RESERVED);     // FSM NEW→RESERVED
+        assertThat(saga.getState()).isEqualTo(SagaStatus.RESERVED);        // сага замкнулась
+    }
+
+    @Test
+    void shouldBeIdempotentWhenSagaAlreadyReserved() {
+        SagaState saga = new SagaState();
+        saga.setOrderId(ORDER_ID);
+        saga.setState(SagaStatus.RESERVED); // повторная доставка inventory.reserved (at-least-once)
+
+        when(sagaStateRepository.findById(ORDER_ID)).thenReturn(Optional.of(saga));
+
+        orderService.onInventoryReserved(ORDER_ID, true);
+
+        verify(orderRepository, never()).findById(any()); // заказ даже не грузим
+        assertThat(saga.getState()).isEqualTo(SagaStatus.RESERVED); // состояние не тронуто
+    }
+
+    @Test
+    void shouldParkFailureBranchWithoutChangingState() {
+        SagaState saga = new SagaState();
+        saga.setOrderId(ORDER_ID);
+        saga.setState(SagaStatus.AWAITING_RESERVATION);
+
+        when(sagaStateRepository.findById(ORDER_ID)).thenReturn(Optional.of(saga));
+
+        orderService.onInventoryReserved(ORDER_ID, false); // компенсация отложена на 4.5
+
+        verify(orderRepository, never()).findById(any());
+        assertThat(saga.getState()).isEqualTo(SagaStatus.AWAITING_RESERVATION);
     }
 }
