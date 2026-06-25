@@ -14,7 +14,7 @@ import ru.potekhincode.order.dto.response.OrderResponse;
 import ru.potekhincode.order.exception.InsufficientStockException;
 import ru.potekhincode.order.exception.InvalidStatusTransitionException;
 import ru.potekhincode.order.exception.OrderNotFoundException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import ru.potekhincode.order.outbox.OutboxEventFactory;
 import ru.potekhincode.order.mapper.OrderMapper;
 import ru.potekhincode.order.model.Order;
 import ru.potekhincode.order.model.OrderItem;
@@ -62,7 +62,7 @@ class OrderServiceImplTest {
     private SagaStateRepository sagaStateRepository;
 
     @Mock
-    private ObjectMapper objectMapper;
+    private OutboxEventFactory outboxEventFactory;
 
     @InjectMocks
     private OrderServiceImpl orderService;
@@ -170,7 +170,7 @@ class OrderServiceImplTest {
         when(sagaStateRepository.findById(ORDER_ID)).thenReturn(Optional.of(saga));
         when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
-        orderService.onInventoryReserved(ORDER_ID, true);
+        orderService.onInventoryReserved(ORDER_ID, true, null);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.RESERVED);     // FSM NEW→RESERVED
         assertThat(saga.getState()).isEqualTo(SagaStatus.RESERVED);        // сага замкнулась
@@ -184,23 +184,44 @@ class OrderServiceImplTest {
 
         when(sagaStateRepository.findById(ORDER_ID)).thenReturn(Optional.of(saga));
 
-        orderService.onInventoryReserved(ORDER_ID, true);
+        orderService.onInventoryReserved(ORDER_ID, true, null);
 
         verify(orderRepository, never()).findById(any()); // заказ даже не грузим
         assertThat(saga.getState()).isEqualTo(SagaStatus.RESERVED); // состояние не тронуто
     }
 
     @Test
-    void shouldParkFailureBranchWithoutChangingState() {
+    void shouldCancelOrderAndSagaAndEmitStatusChangedOnFailure() {
         SagaState saga = new SagaState();
         saga.setOrderId(ORDER_ID);
         saga.setState(SagaStatus.AWAITING_RESERVATION);
+        Order order = new Order();
+        order.setStatus(OrderStatus.NEW);
+
+        when(sagaStateRepository.findById(ORDER_ID)).thenReturn(Optional.of(saga));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        String reason = "p-100: запрошено 99999, доступно 10";
+        orderService.onInventoryReserved(ORDER_ID, false, reason);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);   // FSM NEW→CANCELLED
+        assertThat(saga.getState()).isEqualTo(SagaStatus.CANCELLED);      // сага замкнулась компенсацией
+        verify(outboxEventFactory).orderStatusChanged(order, reason);     // событие построено с причиной
+        verify(outboxRepository).save(any());                            // и положено в outbox (та же транзакция)
+    }
+
+    @Test
+    void shouldBeIdempotentWhenSagaAlreadyCancelled() {
+        SagaState saga = new SagaState();
+        saga.setOrderId(ORDER_ID);
+        saga.setState(SagaStatus.CANCELLED); // повторная доставка после компенсации (at-least-once)
 
         when(sagaStateRepository.findById(ORDER_ID)).thenReturn(Optional.of(saga));
 
-        orderService.onInventoryReserved(ORDER_ID, false); // компенсация отложена на 4.5
+        orderService.onInventoryReserved(ORDER_ID, false, "any reason");
 
-        verify(orderRepository, never()).findById(any());
-        assertThat(saga.getState()).isEqualTo(SagaStatus.AWAITING_RESERVATION);
+        verify(orderRepository, never()).findById(any()); // заказ не трогаем
+        verify(outboxRepository, never()).save(any());    // повторное событие не публикуем
+        assertThat(saga.getState()).isEqualTo(SagaStatus.CANCELLED);
     }
 }
