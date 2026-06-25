@@ -3,6 +3,7 @@ package ru.potekhincode.order.config;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;
 import io.confluent.kafka.serializers.KafkaAvroSerializer;
+import org.apache.avro.specific.SpecificRecord;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -16,7 +17,6 @@ import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.*;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import ru.potekhincode.avro.InventoryReserved;
-import ru.potekhincode.avro.OrderCreated;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -61,7 +61,7 @@ public class KafkaConfig {
 
     // ---- Producer: order.created (публикуется поллером outbox) ----
     @Bean
-    public ProducerFactory<String, OrderCreated> orderCreatedProducerFactory() {
+    public ProducerFactory<String, SpecificRecord> avroProducerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -71,8 +71,8 @@ public class KafkaConfig {
     }
 
     @Bean
-    public KafkaTemplate<String, OrderCreated> orderCreatedKafkaTemplate() {
-        return new KafkaTemplate<>(orderCreatedProducerFactory());
+    public KafkaTemplate<String, SpecificRecord> avroKafkaTemplate() {
+        return new KafkaTemplate<>(avroProducerFactory());
     }
 
     // ---- Topics (идемпотентно; те же объявляет inventory-service) ----
@@ -84,5 +84,10 @@ public class KafkaConfig {
     @Bean
     public NewTopic inventoryReservedTopic() {
         return TopicBuilder.name("inventory.reserved").partitions(3).replicas(topicReplicas).build();
+    }
+
+    @Bean
+    public NewTopic orderStatusChangedTopic() {
+        return TopicBuilder.name("order.status-changed").partitions(3).replicas(topicReplicas).build();
     }
 }
