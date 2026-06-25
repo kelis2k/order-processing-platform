@@ -1,7 +1,5 @@
 package ru.potekhincode.order.service.impl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -16,13 +14,8 @@ import ru.potekhincode.order.exception.InsufficientStockException;
 import ru.potekhincode.order.exception.InvalidStatusTransitionException;
 import ru.potekhincode.order.exception.OrderNotFoundException;
 import ru.potekhincode.order.mapper.OrderMapper;
-import ru.potekhincode.order.model.Order;
-import ru.potekhincode.order.model.OrderItem;
-import ru.potekhincode.order.model.OrderStatus;
-import ru.potekhincode.order.model.OutboxEvent;
-import ru.potekhincode.order.model.SagaState;
-import ru.potekhincode.order.model.SagaStatus;
-import ru.potekhincode.order.outbox.OrderCreatedPayload;
+import ru.potekhincode.order.model.*;
+import ru.potekhincode.order.outbox.OutboxEventFactory;
 import ru.potekhincode.order.repository.OrderRepository;
 import ru.potekhincode.order.repository.OutboxRepository;
 import ru.potekhincode.order.repository.SagaStateRepository;
@@ -41,7 +34,8 @@ public class OrderServiceImpl implements OrderService {
     private final InventoryClient inventoryClient;
     private final OutboxRepository outboxRepository;
     private final SagaStateRepository sagaStateRepository;
-    private final ObjectMapper objectMapper;
+    private final OutboxEventFactory outboxEventFactory;
+
 
 
     @Override
@@ -70,34 +64,9 @@ public class OrderServiceImpl implements OrderService {
         saga.setState(SagaStatus.AWAITING_RESERVATION);
         sagaStateRepository.save(saga);
 
-        outboxRepository.save(buildOrderCreatedOutbox(saved));
+        outboxRepository.save(outboxEventFactory.orderCreated(saved));
 
         return orderMapper.toResponse(saved);
-    }
-
-    private OutboxEvent buildOrderCreatedOutbox(Order order) {
-        List<OrderCreatedPayload.Item> items = order.getItems().stream()
-                .map(i -> new OrderCreatedPayload.Item(i.getProductId(), i.getQuantity()))
-                .toList();
-        OrderCreatedPayload payload = new OrderCreatedPayload(
-                order.getId().toString(),
-                order.getUserId(),
-                items,
-                System.currentTimeMillis()
-        );
-
-        OutboxEvent event = new OutboxEvent();
-        event.setAggregateType("ORDER");
-        event.setAggregateId(order.getId().toString());
-        event.setEventType("OrderCreated");
-        event.setTopic("order.created");
-        event.setMsgKey(order.getId().toString());
-        try {
-            event.setPayload(objectMapper.writeValueAsString(payload));
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Failed to serialize OrderCreated payload", e);
-        }
-        return event;
     }
 
     @Override
@@ -126,7 +95,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public void onInventoryReserved(UUID orderId, boolean success) {
+    public void onInventoryReserved(UUID orderId, boolean success, String reason) {
         SagaState saga = sagaStateRepository.findById(orderId).orElse(null);
         if (saga == null) {
             log.warn("No saga state for orderId={}, ignoring inventory.reserved", orderId);
@@ -145,8 +114,12 @@ public class OrderServiceImpl implements OrderService {
             saga.setState(SagaStatus.RESERVED);
             log.info("Order {} reserved", orderId);
         } else {
-            // ветка компенсации — шаг 4.5 (CANCELLED + order.status-changed)
-            log.warn("Reservation failed for orderId={}, compensation deferred to 4.5", orderId);
+            Order order = orderRepository.findById(orderId)
+                            .orElseThrow(() -> new OrderNotFoundException(orderId));
+            transition(order, OrderStatus.CANCELLED);
+            saga.setState(SagaStatus.CANCELLED);
+            outboxRepository.save(outboxEventFactory.orderStatusChanged(order, reason));
+            log.info("Order {} cancelled (insufficient stock): {}", orderId, reason);
         }
     }
 

@@ -23,6 +23,8 @@ public class InventoryReservedConsumer {
         log.info("Received inventory.reserved: orderId={}, success={}, reason={}",
                 orderId, success, event.getReason());
 
-        orderService.onInventoryReserved(orderId, success);
+        String reason = event.getReason() == null ? null : event.getReason().toString();
+
+        orderService.onInventoryReserved(orderId, success, reason);
     }
 }

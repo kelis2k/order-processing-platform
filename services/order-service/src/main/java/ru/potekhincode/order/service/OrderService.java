@@ -15,6 +15,6 @@ public interface OrderService {
 
     Page<OrderResponse> list(Pageable pageable);
 
-    void onInventoryReserved(UUID orderId, boolean success);
+    void onInventoryReserved(UUID orderId, boolean success, String reason);
 
 }
