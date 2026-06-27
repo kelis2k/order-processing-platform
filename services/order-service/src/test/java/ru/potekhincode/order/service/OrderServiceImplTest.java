@@ -6,6 +6,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import ru.potekhincode.order.client.InventoryClient;
 import ru.potekhincode.order.client.UnavailableItem;
 import ru.potekhincode.order.dto.request.CreateOrderRequest;
@@ -63,6 +64,9 @@ class OrderServiceImplTest {
 
     @Mock
     private OutboxEventFactory outboxEventFactory;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private OrderServiceImpl orderService;

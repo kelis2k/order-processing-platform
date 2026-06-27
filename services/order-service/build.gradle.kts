@@ -11,10 +11,11 @@ dependencies {
     implementation(libs.kafka.avro.serializer)
     implementation(libs.avro)
     implementation(libs.grpc.spring)
+    implementation(libs.mapstruct)
+    implementation(libs.reactor.core)
     implementation(project(":proto-contracts"))
     implementation(project(":avro-schemas"))
     implementation(project(":common"))
-    implementation(libs.mapstruct)
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
     annotationProcessor(libs.mapstruct.processor)
@@ -22,4 +23,5 @@ dependencies {
     runtimeOnly("org.flywaydb:flyway-core")
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
     testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.grpc.inprocess)
 }

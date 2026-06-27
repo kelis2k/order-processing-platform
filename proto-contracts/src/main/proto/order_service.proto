@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package ru.potekhincode.order;
+
+option java_package = "ru.potekhincode.order.grpc";
+option java_multiple_files = true;
+option java_outer_classname = "OrderServiceProto";
+
+service OrderStatusService {
+  // Server-streaming: клиент подписывается на обновления статуса одного заказа.
+  rpc StreamOrderStatus (StreamOrderStatusRequest) returns (stream OrderStatusUpdate);
+}
+
+message StreamOrderStatusRequest {
+  string order_id = 1;
+}
+
+message OrderStatusUpdate {
+  string order_id = 1;
+  string status = 2;
+  string timestamp = 3;
+}

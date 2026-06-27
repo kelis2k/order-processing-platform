@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 import ru.potekhincode.order.client.InventoryClient;
 import ru.potekhincode.order.client.UnavailableItem;
 import ru.potekhincode.order.dto.request.CreateOrderRequest;
@@ -20,9 +21,11 @@ import ru.potekhincode.order.repository.OrderRepository;
 import ru.potekhincode.order.repository.OutboxRepository;
 import ru.potekhincode.order.repository.SagaStateRepository;
 import ru.potekhincode.order.service.OrderService;
+import ru.potekhincode.order.event.OrderStatusChangedEvent;
 
 import java.util.List;
 import java.util.UUID;
+import java.time.OffsetDateTime;
 
 @Slf4j
 @Service
@@ -35,6 +38,7 @@ public class OrderServiceImpl implements OrderService {
     private final OutboxRepository outboxRepository;
     private final SagaStateRepository sagaStateRepository;
     private final OutboxEventFactory outboxEventFactory;
+    private final ApplicationEventPublisher eventPublisher;
 
 
 
@@ -91,6 +95,9 @@ public class OrderServiceImpl implements OrderService {
             throw new InvalidStatusTransitionException(order.getStatus(), target);
         }
         order.setStatus(target);
+        eventPublisher.publishEvent(
+                new OrderStatusChangedEvent(order.getId(), target, OffsetDateTime.now())
+        );
     }
 
     @Override

@@ -29,4 +29,8 @@ public enum OrderStatus {
         return ALLOWED.get(this).contains(target);
     }
 
+    public boolean isTerminal() {
+        return ALLOWED.get(this).isEmpty();
+    }
+
 }

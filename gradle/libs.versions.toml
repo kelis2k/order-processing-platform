@@ -43,7 +43,8 @@ testcontainers-bom              = { module = "org.testcontainers:testcontainers-
 testcontainers-junit            = { module = "org.testcontainers:junit-jupiter" }
 testcontainers-kafka            = { module = "org.testcontainers:kafka" }
 testcontainers-postgres         = { module = "org.testcontainers:postgresql" }
-testcontainers-mongodb = { module = "org.testcontainers:mongodb" }
+testcontainers-mongodb          = { module = "org.testcontainers:mongodb" }
+reactor-core                    = { module = "io.projectreactor:reactor-core" }
 
 [plugins]
 spring-boot         = { id = "org.springframework.boot", version.ref = "spring-boot" }
