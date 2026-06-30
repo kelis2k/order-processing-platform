@@ -49,3 +49,9 @@ CLAUDE.md
 
 ### Claude Code (локальное состояние) ###
 .claude/
+
+### Secrets / ключи (никогда не коммитить приватные ключи) ###
+# Dev JWT-ключи временно лежат на classpath, но в репо не попадают.
+# Вынос в .secrets/dev + JWKS запланирован на этап 5.5 (см. Журнал решений).
+services/auth-service/src/main/resources/keys/
+.secrets/
