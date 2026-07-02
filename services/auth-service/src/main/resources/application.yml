@@ -19,6 +19,13 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: localhost:9092,localhost:9093,localhost:9094
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+    properties:
+      schema.registry.url: http://localhost:8081
 
 app:
   jwt:
@@ -27,6 +34,13 @@ app:
     refresh-ttl: 7d
     private-key: classpath:keys/jwt-private.pem
     public-key: classpath:keys/jwt-public.pem
+  outbox:
+    poll-interval-ms: 1000
+  kafka:
+    topic:
+      replicas: 3
+  confirmation:
+    token-ttl: 24h
 
 management:
   endpoints:

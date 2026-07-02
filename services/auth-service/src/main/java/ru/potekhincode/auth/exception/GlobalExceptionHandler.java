@@ -39,4 +39,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, details));
     }
+
+    @ExceptionHandler(InvalidConfirmationTokenException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidConfirmation(InvalidConfirmationTokenException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage()));
+    }
+
+    @ExceptionHandler(EmailNotConfirmedException.class)
+    public ResponseEntity<ProblemDetail> handleEmailNotConfirmed(EmailNotConfirmedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage()));
+    }
 }

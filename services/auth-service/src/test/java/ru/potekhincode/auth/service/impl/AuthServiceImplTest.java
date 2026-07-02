@@ -8,16 +8,24 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import ru.potekhincode.auth.config.JwtProperties;
+import ru.potekhincode.auth.dto.ConfirmRequest;
 import ru.potekhincode.auth.dto.LoginRequest;
 import ru.potekhincode.auth.dto.RefreshRequest;
 import ru.potekhincode.auth.dto.RegisterRequest;
 import ru.potekhincode.auth.dto.TokenResponse;
 import ru.potekhincode.auth.exception.EmailAlreadyUsedException;
+import ru.potekhincode.auth.exception.EmailNotConfirmedException;
+import ru.potekhincode.auth.exception.InvalidConfirmationTokenException;
 import ru.potekhincode.auth.exception.InvalidCredentialsException;
 import ru.potekhincode.auth.exception.InvalidRefreshTokenException;
+import ru.potekhincode.auth.model.EmailConfirmationToken;
+import ru.potekhincode.auth.model.OutboxEvent;
 import ru.potekhincode.auth.model.RefreshToken;
 import ru.potekhincode.auth.model.Role;
 import ru.potekhincode.auth.model.User;
+import ru.potekhincode.auth.outbox.OutboxEventFactory;
+import ru.potekhincode.auth.repository.EmailConfirmationTokenRepository;
+import ru.potekhincode.auth.repository.OutboxRepository;
 import ru.potekhincode.auth.repository.RefreshTokenRepository;
 import ru.potekhincode.auth.repository.UserRepository;
 import ru.potekhincode.auth.security.JwtService;
@@ -37,7 +45,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * Юнит-тесты сервисного слоя auth-service на Mockito: все коллабораторы (репозитории,
- * энкодер, JWT-сервис) замоканы, проверяется только бизнес-логика регистрации/входа/ротации.
+ * энкодер, JWT-сервис, фабрика/репозиторий Outbox) замоканы, проверяется только бизнес-логика
+ * регистрации/подтверждения/входа/ротации.
  */
 @ExtendWith(MockitoExtension.class)
 class AuthServiceImplTest {
@@ -54,20 +63,28 @@ class AuthServiceImplTest {
     private PasswordEncoder passwordEncoder;
     @Mock
     private JwtService jwtService;
+    @Mock
+    private OutboxEventFactory outboxEventFactory;
+    @Mock
+    private OutboxRepository outboxRepository;
+    @Mock
+    private EmailConfirmationTokenRepository confirmationTokenRepository;
 
     private final JwtProperties jwtProperties = new JwtProperties(
             "auth-service", Duration.ofMinutes(15), Duration.ofDays(7), null, null);
+    private final Duration confirmationTtl = Duration.ofHours(24);
 
     private AuthServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new AuthServiceImpl(userRepository, refreshTokenRepository,
-                passwordEncoder, jwtService, jwtProperties);
+                passwordEncoder, jwtService, jwtProperties,
+                outboxEventFactory, outboxRepository, confirmationTokenRepository, confirmationTtl);
     }
 
     @Test
-    void registerShouldEncodePasswordAndSaveUserWithRoleUser() {
+    void registerShouldEncodePasswordAndSaveDisabledUserWithRoleUser() {
         when(userRepository.existsByEmail(EMAIL)).thenReturn(false);
         when(passwordEncoder.encode(RAW_PASSWORD)).thenReturn(ENCODED_PASSWORD);
 
@@ -80,7 +97,21 @@ class AuthServiceImplTest {
         assertThat(saved.getUsername()).isEqualTo("alice");
         assertThat(saved.getPasswordHash()).isEqualTo(ENCODED_PASSWORD);
         assertThat(saved.getRole()).isEqualTo(Role.ROLE_USER);
-        assertThat(saved.isEnabled()).isTrue();
+        assertThat(saved.isEnabled()).isFalse();
+    }
+
+    @Test
+    void registerShouldWriteUserCreatedToOutboxAndConfirmationToken() {
+        when(userRepository.existsByEmail(EMAIL)).thenReturn(false);
+        when(passwordEncoder.encode(RAW_PASSWORD)).thenReturn(ENCODED_PASSWORD);
+        OutboxEvent event = new OutboxEvent();
+        when(outboxEventFactory.userCreated(any(User.class))).thenReturn(event);
+
+        service.register(new RegisterRequest(EMAIL, "alice", RAW_PASSWORD));
+
+        verify(outboxEventFactory).userCreated(any(User.class));
+        verify(outboxRepository).save(event);
+        verify(confirmationTokenRepository).save(any(EmailConfirmationToken.class));
     }
 
     @Test
@@ -92,11 +123,60 @@ class AuthServiceImplTest {
 
         verify(userRepository, never()).save(any());
         verify(passwordEncoder, never()).encode(any());
+        verify(outboxRepository, never()).save(any());
+        verify(confirmationTokenRepository, never()).save(any());
+    }
+
+    @Test
+    void confirmShouldEnableUserAndMarkTokenUsed() {
+        User user = disabledUser();
+        EmailConfirmationToken token = activeConfirmationToken(user.getId());
+        when(confirmationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(token));
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+
+        service.confirm(new ConfirmRequest("raw-token"));
+
+        assertThat(user.isEnabled()).isTrue();
+        assertThat(token.isUsed()).isTrue();
+    }
+
+    @Test
+    void confirmShouldThrowWhenTokenUnknown() {
+        when(confirmationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.confirm(new ConfirmRequest("raw-token")))
+                .isInstanceOf(InvalidConfirmationTokenException.class);
+
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void confirmShouldThrowWhenTokenAlreadyUsed() {
+        EmailConfirmationToken token = activeConfirmationToken(UUID.randomUUID());
+        token.setUsed(true);
+        when(confirmationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(token));
+
+        assertThatThrownBy(() -> service.confirm(new ConfirmRequest("raw-token")))
+                .isInstanceOf(InvalidConfirmationTokenException.class);
+
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void confirmShouldThrowWhenTokenExpired() {
+        EmailConfirmationToken token = activeConfirmationToken(UUID.randomUUID());
+        token.setExpiresAt(OffsetDateTime.now().minusSeconds(1));
+        when(confirmationTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(token));
+
+        assertThatThrownBy(() -> service.confirm(new ConfirmRequest("raw-token")))
+                .isInstanceOf(InvalidConfirmationTokenException.class);
+
+        verify(userRepository, never()).findById(any());
     }
 
     @Test
     void loginShouldReturnTokensAndPersistRefreshToken() {
-        User user = sampleUser();
+        User user = enabledUser();
         when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches(RAW_PASSWORD, ENCODED_PASSWORD)).thenReturn(true);
         when(jwtService.generateAccessToken(user)).thenReturn("ACCESS");
@@ -111,8 +191,20 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void loginShouldThrowWhenEmailNotConfirmed() {
+        User user = disabledUser();
+        when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(RAW_PASSWORD, ENCODED_PASSWORD)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.login(new LoginRequest(EMAIL, RAW_PASSWORD)))
+                .isInstanceOf(EmailNotConfirmedException.class);
+
+        verify(refreshTokenRepository, never()).save(any());
+    }
+
+    @Test
     void loginShouldThrowOnWrongPassword() {
-        User user = sampleUser();
+        User user = enabledUser();
         when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", ENCODED_PASSWORD)).thenReturn(false);
 
@@ -132,7 +224,7 @@ class AuthServiceImplTest {
 
     @Test
     void refreshShouldRevokeOldTokenAndIssueNew() {
-        User user = sampleUser();
+        User user = enabledUser();
         RefreshToken stored = activeToken(user.getId());
         when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(stored));
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
@@ -175,6 +267,18 @@ class AuthServiceImplTest {
                 .isInstanceOf(InvalidRefreshTokenException.class);
     }
 
+    private User enabledUser() {
+        User user = sampleUser();
+        user.setEnabled(true);
+        return user;
+    }
+
+    private User disabledUser() {
+        User user = sampleUser();
+        user.setEnabled(false);
+        return user;
+    }
+
     private User sampleUser() {
         User user = new User();
         user.setId(UUID.randomUUID());
@@ -182,8 +286,15 @@ class AuthServiceImplTest {
         user.setUsername("alice");
         user.setPasswordHash(ENCODED_PASSWORD);
         user.setRole(Role.ROLE_USER);
-        user.setEnabled(true);
         return user;
+    }
+
+    private EmailConfirmationToken activeConfirmationToken(UUID userId) {
+        EmailConfirmationToken token = new EmailConfirmationToken();
+        token.setUserId(userId);
+        token.setExpiresAt(OffsetDateTime.now().plusHours(1));
+        token.setUsed(false);
+        return token;
     }
 
     private RefreshToken activeToken(UUID userId) {

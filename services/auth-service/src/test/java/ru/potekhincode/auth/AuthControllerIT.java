@@ -3,48 +3,43 @@ package ru.potekhincode.auth;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import ru.potekhincode.auth.dto.ConfirmRequest;
 import ru.potekhincode.auth.dto.LoginRequest;
 import ru.potekhincode.auth.dto.RefreshRequest;
 import ru.potekhincode.auth.dto.RegisterRequest;
 import ru.potekhincode.auth.dto.TokenResponse;
+import ru.potekhincode.auth.model.EmailConfirmationToken;
+import ru.potekhincode.auth.model.User;
+import ru.potekhincode.auth.repository.EmailConfirmationTokenRepository;
+import ru.potekhincode.auth.repository.OutboxRepository;
 import ru.potekhincode.auth.repository.RefreshTokenRepository;
 import ru.potekhincode.auth.repository.UserRepository;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.OffsetDateTime;
+import java.util.HexFormat;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Сквозной IT auth-service на полном Spring-контексте + Testcontainers PostgreSQL (с Flyway).
- * REST — настоящая точка входа: проверяются {@code /auth/register|login|refresh} через HTTP.
+ * Сквозной IT auth-service на полном Spring-контексте + Testcontainers PostgreSQL + Kafka.
+ * REST — настоящая точка входа: {@code /auth/register|login|refresh|confirm} через HTTP.
+ * <p>
+ * После шага 5.2 регистрация создаёт <b>неподтверждённого</b> пользователя ({@code enabled=false}),
+ * поэтому happy-path входа проходит через подтверждение. Сырой confirmation-токен в БД не хранится
+ * (только SHA-256), а API его не возвращает — поэтому для проверки эндпоинта тест сам засевает
+ * токен с известным сырым значением и его хэшем, затем дергает {@code /auth/confirm}.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class AuthControllerIT {
+class AuthControllerIT extends AbstractIntegrationTest {
 
     private static final String EMAIL = "alice@example.com";
     private static final String PASSWORD = "password1";
-
-    @SuppressWarnings("resource")
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>(DockerImageName.parse("postgres:15"))
-                    .withDatabaseName("auth_db");
-
-    static {
-        POSTGRES.start();
-    }
-
-    @DynamicPropertySource
-    static void datasourceProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
 
     @Autowired
     private TestRestTemplate rest;
@@ -52,20 +47,28 @@ class AuthControllerIT {
     private UserRepository userRepository;
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
+    @Autowired
+    private EmailConfirmationTokenRepository confirmationTokenRepository;
+    @Autowired
+    private OutboxRepository outboxRepository;
 
     @BeforeEach
     void clean() {
+        // Дети (FK на users) — до самих users; outbox без FK, но чистим для изоляции.
         refreshTokenRepository.deleteAll();
+        confirmationTokenRepository.deleteAll();
+        outboxRepository.deleteAll();
         userRepository.deleteAll();
     }
 
     @Test
-    void registerShouldReturn201AndPersistUser() {
+    void registerShouldReturn201AndPersistDisabledUser() {
         ResponseEntity<Void> resp = rest.postForEntity(
                 "/auth/register", new RegisterRequest(EMAIL, "alice", PASSWORD), Void.class);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(userRepository.existsByEmail(EMAIL)).isTrue();
+        User saved = userRepository.findByEmail(EMAIL).orElseThrow();
+        assertThat(saved.isEnabled()).isFalse();
     }
 
     @Test
@@ -87,8 +90,21 @@ class AuthControllerIT {
     }
 
     @Test
-    void loginShouldReturnTokens() {
+    void loginShouldReturn403BeforeEmailConfirmed() {
         register(EMAIL, "alice", PASSWORD);
+
+        ResponseEntity<String> resp = rest.postForEntity(
+                "/auth/login", new LoginRequest(EMAIL, PASSWORD), String.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void confirmShouldEnableUserThenLoginReturnsTokens() {
+        register(EMAIL, "alice", PASSWORD);
+        confirm(EMAIL);
+
+        assertThat(userRepository.findByEmail(EMAIL).orElseThrow().isEnabled()).isTrue();
 
         ResponseEntity<TokenResponse> resp = rest.postForEntity(
                 "/auth/login", new LoginRequest(EMAIL, PASSWORD), TokenResponse.class);
@@ -101,8 +117,17 @@ class AuthControllerIT {
     }
 
     @Test
+    void confirmShouldReturn400OnUnknownToken() {
+        ResponseEntity<String> resp = rest.postForEntity(
+                "/auth/confirm", new ConfirmRequest("garbage-token"), String.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
     void loginShouldReturn401OnWrongPassword() {
         register(EMAIL, "alice", PASSWORD);
+        confirm(EMAIL);
 
         ResponseEntity<String> resp = rest.postForEntity(
                 "/auth/login", new LoginRequest(EMAIL, "wrongpass"), String.class);
@@ -113,6 +138,7 @@ class AuthControllerIT {
     @Test
     void refreshShouldRotateTokenAndRevokeOldOne() {
         register(EMAIL, "alice", PASSWORD);
+        confirm(EMAIL);
         TokenResponse first = rest.postForEntity(
                 "/auth/login", new LoginRequest(EMAIL, PASSWORD), TokenResponse.class).getBody();
         assertThat(first).isNotNull();
@@ -125,7 +151,6 @@ class AuthControllerIT {
         assertThat(refreshed.getBody().refreshToken()).isNotEqualTo(first.refreshToken());
 
         // Старый refresh-токен отозван при ротации → повторное использование запрещено.
-        // Без @Transactional на refresh() отзыв не сохранялся бы и тут пришёл бы 200.
         ResponseEntity<String> reuse = rest.postForEntity(
                 "/auth/refresh", new RefreshRequest(first.refreshToken()), String.class);
 
@@ -144,5 +169,35 @@ class AuthControllerIT {
         ResponseEntity<Void> resp = rest.postForEntity(
                 "/auth/register", new RegisterRequest(email, username, password), Void.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
+
+    /**
+     * Засевает подтверждающий токен с известным сырым значением (его хэш кладём в БД так же,
+     * как это делает сервис) и подтверждает аккаунт через реальный REST-эндпоинт.
+     */
+    private void confirm(String email) {
+        User user = userRepository.findByEmail(email).orElseThrow();
+        String rawToken = "raw-" + UUID.randomUUID();
+
+        EmailConfirmationToken token = new EmailConfirmationToken();
+        token.setUserId(user.getId());
+        token.setTokenHash(sha256Hex(rawToken));
+        token.setExpiresAt(OffsetDateTime.now().plusHours(1));
+        token.setUsed(false);
+        confirmationTokenRepository.save(token);
+
+        ResponseEntity<Void> resp = rest.postForEntity(
+                "/auth/confirm", new ConfirmRequest(rawToken), Void.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    private static String sha256Hex(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
     }
 }

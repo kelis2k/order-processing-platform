@@ -10,6 +10,9 @@ dependencies {
     implementation(libs.spring.boot.starter.data.jpa)
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.actuator)
+    implementation(libs.kafka.avro.serializer)
+    implementation(libs.avro)
+    implementation(project(":avro-schemas"))
     implementation(libs.spring.kafka)
     implementation(libs.mapstruct)
     implementation(libs.jjwt.api)
@@ -25,6 +28,7 @@ dependencies {
     testImplementation(platform(libs.testcontainers.bom))
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.postgres)
+    testImplementation(libs.testcontainers.kafka)
 }
 
 tasks.withType<Test> {
