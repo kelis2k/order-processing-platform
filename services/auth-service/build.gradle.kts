@@ -11,6 +11,7 @@ dependencies {
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.actuator)
     implementation(libs.kafka.avro.serializer)
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
     implementation(libs.avro)
     implementation(project(":avro-schemas"))
     implementation(libs.spring.kafka)

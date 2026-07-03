@@ -18,6 +18,7 @@ import ru.potekhincode.auth.exception.EmailNotConfirmedException;
 import ru.potekhincode.auth.exception.InvalidConfirmationTokenException;
 import ru.potekhincode.auth.exception.InvalidCredentialsException;
 import ru.potekhincode.auth.exception.InvalidRefreshTokenException;
+import ru.potekhincode.auth.model.AuthProvider;
 import ru.potekhincode.auth.model.EmailConfirmationToken;
 import ru.potekhincode.auth.model.OutboxEvent;
 import ru.potekhincode.auth.model.RefreshToken;
@@ -54,6 +55,7 @@ class AuthServiceImplTest {
     private static final String EMAIL = "alice@example.com";
     private static final String RAW_PASSWORD = "password1";
     private static final String ENCODED_PASSWORD = "{bcrypt}encoded";
+    private static final String OAUTH_EMAIL = "bob@example.com";
 
     @Mock
     private UserRepository userRepository;
@@ -265,6 +267,46 @@ class AuthServiceImplTest {
 
         assertThatThrownBy(() -> service.refresh(new RefreshRequest("t")))
                 .isInstanceOf(InvalidRefreshTokenException.class);
+    }
+
+    @Test
+    void oauthLoginShouldCreateEnabledUserAndPublishUserCreatedWhenEmailUnknown() {
+        when(userRepository.findByEmail(OAUTH_EMAIL)).thenReturn(Optional.empty());
+        OutboxEvent event = new OutboxEvent();
+        when(outboxEventFactory.userCreated(any(User.class))).thenReturn(event);
+        when(jwtService.generateAccessToken(any(User.class))).thenReturn("ACCESS");
+
+        TokenResponse resp = service.oauthLogin(OAUTH_EMAIL, "bob", AuthProvider.GOOGLE, "google-sub-1");
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        User saved = captor.getValue();
+        assertThat(saved.getEmail()).isEqualTo(OAUTH_EMAIL);
+        assertThat(saved.getUsername()).isEqualTo("bob");
+        assertThat(saved.getPasswordHash()).isNull();          // внешний вход — пароля нет
+        assertThat(saved.isEnabled()).isTrue();                 // провайдер верифицировал email
+        assertThat(saved.getRole()).isEqualTo(Role.ROLE_USER);
+        assertThat(saved.getProvider()).isEqualTo(AuthProvider.GOOGLE);
+        assertThat(saved.getProviderId()).isEqualTo("google-sub-1");
+
+        verify(outboxRepository).save(event);                   // user.created опубликован
+        assertThat(resp.accessToken()).isEqualTo("ACCESS");
+        assertThat(resp.refreshToken()).isNotBlank();
+    }
+
+    @Test
+    void oauthLoginShouldReuseExistingUserWithoutDuplicateEventWhenEmailKnown() {
+        User existing = enabledUser();
+        when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(existing));
+        when(jwtService.generateAccessToken(existing)).thenReturn("ACCESS");
+
+        TokenResponse resp = service.oauthLogin(EMAIL, "ignored", AuthProvider.GITHUB, "gh-42");
+
+        verify(userRepository, never()).save(any());            // линковка: без дубля юзера
+        verify(outboxEventFactory, never()).userCreated(any()); // и без повторного user.created
+        verify(outboxRepository, never()).save(any());
+        verify(refreshTokenRepository).save(any(RefreshToken.class)); // но токены всё равно выдаём
+        assertThat(resp.accessToken()).isEqualTo("ACCESS");
     }
 
     private User enabledUser() {

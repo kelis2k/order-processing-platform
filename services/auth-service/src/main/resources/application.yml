@@ -26,6 +26,18 @@ spring:
       value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
     properties:
       schema.registry.url: http://localhost:8081
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:dummy}
+            client-secret: ${GOOGLE_CLIENT_SECRET:dummy}
+            scope: openid, email, profile
+          github:
+            client-id: ${GITHUB_CLIENT_ID:dummy}
+            client-secret: ${GITHUB_CLIENT_SECRET:dummy}
+            scope: read:user, user:email
 
 app:
   jwt:

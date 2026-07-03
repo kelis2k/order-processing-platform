@@ -7,10 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.potekhincode.auth.config.JwtProperties;
 import ru.potekhincode.auth.dto.*;
 import ru.potekhincode.auth.exception.*;
-import ru.potekhincode.auth.model.EmailConfirmationToken;
-import ru.potekhincode.auth.model.RefreshToken;
-import ru.potekhincode.auth.model.Role;
-import ru.potekhincode.auth.model.User;
+import ru.potekhincode.auth.model.*;
 import ru.potekhincode.auth.outbox.OutboxEventFactory;
 import ru.potekhincode.auth.repository.EmailConfirmationTokenRepository;
 import ru.potekhincode.auth.repository.OutboxRepository;
@@ -186,4 +183,28 @@ public class AuthServiceImpl implements AuthService {
         token.setUsed(true);
     }
 
+    @Override
+    @Transactional
+    public TokenResponse oauthLogin(String email,
+                                    String username,
+                                    AuthProvider provider,
+                                    String providerId) {
+        User user = userRepository.findByEmail(email)
+                .orElseGet(() -> createOAuthUser(email, username, provider, providerId));
+        return issueTokens(user);
+    }
+
+    private User createOAuthUser(String email, String username, AuthProvider provider, String providerId) {
+        User user = new User();
+        user.setEmail(email);
+        user.setUsername(username);
+        user.setPasswordHash(null);
+        user.setRole(Role.ROLE_USER);
+        user.setEnabled(true);
+        user.setProvider(provider);
+        user.setProviderId(providerId);
+        userRepository.save(user);
+        outboxRepository.save(outboxEventFactory.userCreated(user));
+        return user;
+    }
 }
