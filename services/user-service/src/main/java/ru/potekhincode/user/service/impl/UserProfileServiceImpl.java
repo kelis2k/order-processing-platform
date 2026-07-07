@@ -2,10 +2,12 @@ package ru.potekhincode.user.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import ru.potekhincode.user.dto.UpdateProfileRequest;
 import ru.potekhincode.user.dto.UserProfileResponse;
 import ru.potekhincode.user.exception.UserProfileNotFoundException;
@@ -23,6 +25,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class UserProfileServiceImpl implements UserProfileService {
+
+    @Value("${app.bootstrap.admin-email:}")
+    private String adminEmail;
 
     private final UserProfileRepository repository;
     private final UserProfileMapper mapper;
@@ -43,6 +48,10 @@ public class UserProfileServiceImpl implements UserProfileService {
         profile.setUsername(username);
         repository.save(profile);
         log.info("Created user profile from user.created: id={}, email={}", id, email);
+
+        if (StringUtils.hasText(adminEmail) && adminEmail.equalsIgnoreCase(email)) {
+            changeRole(id, Role.ROLE_ADMIN);
+        }
     }
 
     @Override

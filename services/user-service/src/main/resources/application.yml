@@ -38,6 +38,8 @@ app:
       replicas: 3
   outbox:
     poll-interval-ms: 1000
+  bootstrap:
+    admin-email: ${ADMIN_EMAIL:}
 
 management:
   endpoints:
