@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: product-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH_JWKS_URI:http://localhost:8086/.well-known/jwks.json}
 
   data:
     mongodb:
