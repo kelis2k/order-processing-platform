@@ -9,12 +9,13 @@ import java.util.UUID;
 
 public interface OrderService {
 
-    OrderResponse create(CreateOrderRequest request);
+    OrderResponse create(CreateOrderRequest request, String userId);
 
     OrderResponse findById(UUID id);
 
     Page<OrderResponse> list(Pageable pageable);
 
     void onInventoryReserved(UUID orderId, boolean success, String reason);
+
 
 }

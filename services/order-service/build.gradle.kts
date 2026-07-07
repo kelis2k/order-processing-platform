@@ -5,6 +5,7 @@ plugins {
 ext["testcontainers.version"] = libs.versions.testcontainers.get()
 
 dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.data.jpa)
     implementation(libs.spring.boot.starter.actuator)

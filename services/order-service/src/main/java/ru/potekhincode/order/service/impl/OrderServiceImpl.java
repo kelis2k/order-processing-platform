@@ -44,14 +44,14 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public OrderResponse create(CreateOrderRequest request) {
+    public OrderResponse create(CreateOrderRequest request, String userId) {
         List<UnavailableItem> unavailable = inventoryClient.checkAvailability(request.items());
         if (!unavailable.isEmpty()) {
             throw new InsufficientStockException(unavailable);
         }
 
         Order order = new Order();
-        order.setUserId(request.userId());
+        order.setUserId(userId);
         order.setStatus(OrderStatus.NEW);
 
         request.items().forEach(
@@ -72,6 +72,8 @@ public class OrderServiceImpl implements OrderService {
 
         return orderMapper.toResponse(saved);
     }
+
+
 
     @Override
     @Transactional(readOnly = true)
