@@ -4,6 +4,35 @@ server:
 spring:
   application:
     name: user-service
+  datasource:
+    url: jdbc:postgresql://localhost:5433/user_db
+    username: user_svc
+    password: user_svc
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 30000
+  jpa:
+    hibernate:
+    ddl-auto: validate
+    open-in-view: false
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: localhost:9092,localhost:9093,localhost:9094
+    consumer:
+      group-id: user-service
+      auto-offset-reset: earliest
+    properties:
+      schema.registry.url: http://localhost:8081
+
+app:
+  kafka:
+    topic:
+      replicas: 3
+  outbox:
+    poll-interval-ms: 1000
 
 management:
   endpoints:
