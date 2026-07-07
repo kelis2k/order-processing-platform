@@ -24,6 +24,9 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+    consumer:
+      group-id: auth-service
+      auto-offset-reset: earliest
     properties:
       schema.registry.url: http://localhost:8081
   security:

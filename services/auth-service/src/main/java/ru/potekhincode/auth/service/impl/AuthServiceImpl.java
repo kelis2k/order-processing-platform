@@ -24,6 +24,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -206,5 +207,17 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
         outboxRepository.save(outboxEventFactory.userCreated(user));
         return user;
+    }
+
+    @Override
+    @Transactional
+    public void applyRoleChange(UUID userId, Role role) {
+        userRepository.findById(userId).ifPresentOrElse(
+                user -> {
+                    user.setRole(role);
+                    log.info("Applied role change from user.role-changed: userId={}, role={}", userId, role);
+                },
+                () -> log.warn("Received user.role-changed for unknown userId={}, skipping", userId)
+        );
     }
 }

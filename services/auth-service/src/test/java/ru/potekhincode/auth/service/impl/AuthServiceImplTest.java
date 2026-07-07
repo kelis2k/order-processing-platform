@@ -309,6 +309,28 @@ class AuthServiceImplTest {
         assertThat(resp.accessToken()).isEqualTo("ACCESS");
     }
 
+    // ---- applyRoleChange (consumer user.role-changed → реплика роли, ADR 0005) ----
+
+    @Test
+    void applyRoleChangeShouldUpdateRoleWhenUserExists() {
+        User user = sampleUser();
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+
+        service.applyRoleChange(user.getId(), Role.ROLE_MANAGER);
+
+        assertThat(user.getRole()).isEqualTo(Role.ROLE_MANAGER);
+    }
+
+    @Test
+    void applyRoleChangeShouldSkipWhenUserUnknown() {
+        UUID unknownId = UUID.randomUUID();
+        when(userRepository.findById(unknownId)).thenReturn(Optional.empty());
+
+        service.applyRoleChange(unknownId, Role.ROLE_ADMIN); // не должно бросать
+
+        verify(userRepository, never()).save(any());
+    }
+
     private User enabledUser() {
         User user = sampleUser();
         user.setEnabled(true);
