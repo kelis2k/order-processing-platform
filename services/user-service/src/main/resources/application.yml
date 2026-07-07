@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: user-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH_JWKS_URI:http://localhost:8086/.well-known/jwks.json}
   datasource:
     url: jdbc:postgresql://localhost:5433/user_db
     username: user_svc

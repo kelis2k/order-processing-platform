@@ -11,6 +11,7 @@ import ru.potekhincode.user.dto.UpdateProfileRequest;
 import ru.potekhincode.user.dto.UpdateRoleRequest;
 import ru.potekhincode.user.dto.UserProfileResponse;
 import ru.potekhincode.user.service.UserProfileService;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.UUID;
 
@@ -30,6 +31,7 @@ public class UserProfileController {
         return service.list(pageable);
     }
 
+    @PreAuthorize("#id.toString() == authentication.name or hasRole('ADMIN')")
     @PatchMapping("/{id}")
     public UserProfileResponse update(@PathVariable UUID id,
                                       @Valid @RequestBody UpdateProfileRequest request) {

@@ -55,3 +55,4 @@ CLAUDE.md
 # Вынос в .secrets/dev + JWKS запланирован на этап 5.5 (см. Журнал решений).
 services/auth-service/src/main/resources/keys/
 .secrets/
+api.http
