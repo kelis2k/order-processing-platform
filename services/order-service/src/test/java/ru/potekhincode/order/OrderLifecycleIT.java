@@ -20,6 +20,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import ru.potekhincode.avro.InventoryReserved;
@@ -145,11 +147,24 @@ class OrderLifecycleIT extends AbstractIntegrationTest {
         assertThat(statusChanged.getReason()).hasToString(reason);
     }
 
+    @Test
+    void createOrderWithoutTokenIsUnauthorized() {
+        CreateOrderRequest request = new CreateOrderRequest(
+                List.of(new OrderItemRequest(PRODUCT_ID, QUANTITY)));
+
+        ResponseEntity<Void> response =
+                restTemplate.postForEntity("/orders", request, Void.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
     private UUID createOrder() {
         CreateOrderRequest request = new CreateOrderRequest(
-                USER_ID, List.of(new OrderItemRequest(PRODUCT_ID, QUANTITY)));
-        ResponseEntity<OrderResponse> response =
-                restTemplate.postForEntity("/orders", request, OrderResponse.class);
+                List.of(new OrderItemRequest(PRODUCT_ID, QUANTITY)));
+        ResponseEntity<OrderResponse> response = restTemplate.exchange(
+                "/orders", HttpMethod.POST,
+                new HttpEntity<>(request, bearer(USER_ID, "ROLE_USER")),
+                OrderResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();

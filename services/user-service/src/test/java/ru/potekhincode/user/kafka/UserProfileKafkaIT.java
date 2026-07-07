@@ -94,7 +94,7 @@ class UserProfileKafkaIT extends AbstractIntegrationTest {
             ResponseEntity<Void> resp = rest.exchange(
                     "/users/" + userId + "/role",
                     HttpMethod.PUT,
-                    new HttpEntity<>(Map.of("role", "ROLE_MANAGER")),
+                    new HttpEntity<>(Map.of("role", "ROLE_MANAGER"), bearer("admin-it", "ROLE_ADMIN")),
                     Void.class);
             assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
 

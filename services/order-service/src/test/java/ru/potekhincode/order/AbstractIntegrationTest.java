@@ -2,6 +2,10 @@ package ru.potekhincode.order;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -10,6 +14,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 import ru.potekhincode.order.client.InventoryClient;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -49,6 +54,34 @@ public abstract class AbstractIntegrationTest {
     /** Заглушка синхронной проверки наличия: всё доступно → заказ всегда создаётся. */
     @MockitoBean
     protected InventoryClient inventoryClient;
+
+    /**
+     * Мок декодера JWT: resource-server работает как в проде (фильтр + правила ролей),
+     * но подпись/JWKS не проверяются — {@link #bearer} стабит decode нужного токена.
+     */
+    @MockitoBean
+    protected JwtDecoder jwtDecoder;
+
+    /**
+     * Готовит заголовки с валидным (с точки зрения resource-server) Bearer-токеном:
+     * стабит {@code jwtDecoder.decode} на Jwt с заданными subject и ролью (claim {@code role}).
+     */
+    protected HttpHeaders bearer(String subject, String role) {
+        String token = "test-" + role + "-" + subject;
+        Jwt jwt = Jwt.withTokenValue(token)
+                .header("alg", "none")
+                .subject(subject)
+                .claim("role", role)
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(300))
+                .build();
+        when(jwtDecoder.decode(token)).thenReturn(jwt);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        return headers;
+    }
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {

@@ -74,7 +74,7 @@ class OrderServiceImplTest {
     @Test
     void shouldCreateOrderInNewStatusWithLinkedItems() {
         CreateOrderRequest request =
-                new CreateOrderRequest(USER_ID, List.of(new OrderItemRequest(PRODUCT_ID, QUANTITY)));
+                new CreateOrderRequest(List.of(new OrderItemRequest(PRODUCT_ID, QUANTITY)));
         OrderItem mappedItem = new OrderItem();
         mappedItem.setProductId(PRODUCT_ID);
         mappedItem.setQuantity(QUANTITY);
@@ -89,7 +89,7 @@ class OrderServiceImplTest {
         when(orderMapper.toResponse(any(Order.class)))
                 .thenReturn(new OrderResponse(ORDER_ID, USER_ID, OrderStatus.NEW, null, List.of(), null));
 
-        OrderResponse result = orderService.create(request);
+        OrderResponse result = orderService.create(request, USER_ID);
 
         verify(inventoryClient).checkAvailability(request.items()); // склад опрошен перед сохранением
         ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
@@ -112,11 +112,11 @@ class OrderServiceImplTest {
     @Test
     void shouldRejectAndNotSaveWhenStockInsufficient() {
         CreateOrderRequest request =
-                new CreateOrderRequest(USER_ID, List.of(new OrderItemRequest(PRODUCT_ID, QUANTITY)));
+                new CreateOrderRequest(List.of(new OrderItemRequest(PRODUCT_ID, QUANTITY)));
         when(inventoryClient.checkAvailability(request.items()))
                 .thenReturn(List.of(new UnavailableItem(PRODUCT_ID, QUANTITY, 1))); // просили 2, есть 1
 
-        assertThatThrownBy(() -> orderService.create(request))
+        assertThatThrownBy(() -> orderService.create(request, USER_ID))
                 .isInstanceOf(InsufficientStockException.class)
                 .hasMessageContaining(PRODUCT_ID);
 
