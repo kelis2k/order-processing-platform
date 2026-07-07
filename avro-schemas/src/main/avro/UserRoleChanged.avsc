@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "UserRoleChanged",
+  "namespace": "ru.potekhincode.avro",
+  "fields": [
+    {"name": "userId",    "type": "string"},
+    {"name": "role",      "type": "string"},
+    {"name": "timestamp", "type": {"type": "long", "logicalType": "timestamp-millis"}}
+  ]
+}
