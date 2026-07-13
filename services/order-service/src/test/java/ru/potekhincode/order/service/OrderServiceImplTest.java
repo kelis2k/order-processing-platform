@@ -7,6 +7,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import ru.potekhincode.order.client.InventoryClient;
 import ru.potekhincode.order.client.UnavailableItem;
 import ru.potekhincode.order.dto.request.CreateOrderRequest;
@@ -14,7 +17,9 @@ import ru.potekhincode.order.dto.request.OrderItemRequest;
 import ru.potekhincode.order.dto.response.OrderResponse;
 import ru.potekhincode.order.exception.InsufficientStockException;
 import ru.potekhincode.order.exception.InvalidStatusTransitionException;
+import ru.potekhincode.order.exception.OrderAccessDeniedException;
 import ru.potekhincode.order.exception.OrderNotFoundException;
+import ru.potekhincode.order.security.Caller;
 import ru.potekhincode.order.outbox.OutboxEventFactory;
 import ru.potekhincode.order.mapper.OrderMapper;
 import ru.potekhincode.order.model.Order;
@@ -44,6 +49,7 @@ class OrderServiceImplTest {
     private static final UUID ORDER_ID   = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID UNKNOWN_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
     private static final String USER_ID    = "u-42";
+    private static final String OTHER_USER_ID = "u-99";
     private static final String PRODUCT_ID = "p-100";
     private static final int QUANTITY      = 2;
 
@@ -124,23 +130,88 @@ class OrderServiceImplTest {
     }
 
     @Test
-    void shouldReturnOrderWhenFoundById() {
-        Order order = new Order();
+    void shouldReturnOrderWhenFoundByIdAndCallerIsOwner() {
+        Order order = order(USER_ID);
         OrderResponse response =
                 new OrderResponse(ORDER_ID, USER_ID, OrderStatus.NEW, null, List.of(), null);
         when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(orderMapper.toResponse(order)).thenReturn(response);
 
-        assertThat(orderService.findById(ORDER_ID)).isEqualTo(response);
+        assertThat(orderService.findById(ORDER_ID, owner())).isEqualTo(response);
     }
 
     @Test
     void shouldThrowNotFoundWhenOrderMissing() {
         when(orderRepository.findById(UNKNOWN_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> orderService.findById(UNKNOWN_ID))
+        assertThatThrownBy(() -> orderService.findById(UNKNOWN_ID, owner()))
                 .isInstanceOf(OrderNotFoundException.class)
                 .hasMessageContaining(UNKNOWN_ID.toString());
+    }
+
+    @Test
+    void requireVisibleShouldAllowOwner() {
+        Order order = order(USER_ID);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        assertThat(orderService.requireVisible(ORDER_ID, owner())).isSameAs(order);
+    }
+
+    /** ADMIN видит чужие заказы — то же правило, что PATCH /users/{id} в user-service (ADR 0005). */
+    @Test
+    void requireVisibleShouldAllowAdminOnForeignOrder() {
+        Order order = order(OTHER_USER_ID);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        assertThat(orderService.requireVisible(ORDER_ID, admin())).isSameAs(order);
+    }
+
+    @Test
+    void requireVisibleShouldDenyForeignOrderForRegularUser() {
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order(OTHER_USER_ID)));
+
+        assertThatThrownBy(() -> orderService.requireVisible(ORDER_ID, owner()))
+                .isInstanceOf(OrderAccessDeniedException.class)
+                .hasMessageContaining(ORDER_ID.toString());
+    }
+
+    /** Обычный пользователь видит в списке только свои заказы — не всю базу платформы. */
+    @Test
+    void listShouldReturnOnlyOwnOrdersForRegularUser() {
+        Pageable pageable = PageRequest.of(0, 20);
+        when(orderRepository.findAllByUserId(USER_ID, pageable)).thenReturn(Page.empty(pageable));
+
+        orderService.list(pageable, owner());
+
+        verify(orderRepository).findAllByUserId(USER_ID, pageable);
+        verify(orderRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listShouldReturnAllOrdersForAdmin() {
+        Pageable pageable = PageRequest.of(0, 20);
+        when(orderRepository.findAll(pageable)).thenReturn(Page.empty(pageable));
+
+        orderService.list(pageable, admin());
+
+        verify(orderRepository).findAll(pageable);
+        verify(orderRepository, never()).findAllByUserId(any(), any());
+    }
+
+    private Order order(String ownerId) {
+        Order order = new Order();
+        order.setId(ORDER_ID);
+        order.setUserId(ownerId);
+        order.setStatus(OrderStatus.NEW);
+        return order;
+    }
+
+    private Caller owner() {
+        return new Caller(USER_ID, "ROLE_USER");
+    }
+
+    private Caller admin() {
+        return new Caller("admin-1", "ROLE_ADMIN");
     }
 
     @Test
