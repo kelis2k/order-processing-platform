@@ -11,29 +11,84 @@ spring:
           uri: ${AUTH_URI:http://localhost:8086}
           predicates:
             - Path=/auth/**,/oauth2/**,/login/**,/.well-known/jwks.json
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@userOrIpKeyResolver}"
+                resilient-rate-limiter.refillRate: ${app.rate-limit.auth.refill-rate}
+                resilient-rate-limiter.burstCapacity: ${app.rate-limit.auth.burst-capacity}
+                resilient-rate-limiter.requestedTokens: ${app.rate-limit.auth.requested-tokens}
         - id: product-service
           uri: ${PRODUCT_URI:http://localhost:8083}
           predicates:
             - Path=/products/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@userOrIpKeyResolver}"
+                resilient-rate-limiter.refillRate: ${app.rate-limit.product.refill-rate}
+                resilient-rate-limiter.burstCapacity: ${app.rate-limit.product.burst-capacity}
+                resilient-rate-limiter.requestedTokens: ${app.rate-limit.product.requested-tokens}
         - id: order-service
           uri: ${ORDER_URI:http://localhost:8085}
           predicates:
             - Path=/orders/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@userOrIpKeyResolver}"
+                resilient-rate-limiter.refillRate: ${app.rate-limit.order.refill-rate}
+                resilient-rate-limiter.burstCapacity: ${app.rate-limit.order.burst-capacity}
+                resilient-rate-limiter.requestedTokens: ${app.rate-limit.order.requested-tokens}
         - id: user-service
           uri: ${USER_URI:http://localhost:8082}
           predicates:
             - Path=/users/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@userOrIpKeyResolver}"
+                resilient-rate-limiter.refillRate: ${app.rate-limit.user.refill-rate}
+                resilient-rate-limiter.burstCapacity: ${app.rate-limit.user.burst-capacity}
+                resilient-rate-limiter.requestedTokens: ${app.rate-limit.user.requested-tokens}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   security:
     oauth2:
       resourceserver:
         jwt:
           jwk-set-uri: ${AUTH_JWKS_URI:http://localhost:8086/.well-known/jwks.json}
 
+# Лимиты token bucket по маршрутам: refill-rate — токенов/сек (устойчивый rate),
+# burst-capacity — объём ведра (допустимый всплеск), requested-tokens — цена одного запроса.
+# redis-timeout-ms — после него лимитер деградирует на локальное ведро (см. ADR 0007).
+app:
+  rate-limit:
+    redis-timeout-ms: ${RL_REDIS_TIMEOUT_MS:100}
+    auth:
+      refill-rate: ${RL_AUTH_REFILL:1}
+      burst-capacity: ${RL_AUTH_BURST:5}
+      requested-tokens: ${RL_AUTH_TOKENS:1}
+    product:
+      refill-rate: ${RL_PRODUCT_REFILL:20}
+      burst-capacity: ${RL_PRODUCT_BURST:40}
+      requested-tokens: ${RL_PRODUCT_TOKENS:1}
+    order:
+      refill-rate: ${RL_ORDER_REFILL:5}
+      burst-capacity: ${RL_ORDER_BURST:10}
+      requested-tokens: ${RL_ORDER_TOKENS:1}
+    user:
+      refill-rate: ${RL_USER_REFILL:10}
+      burst-capacity: ${RL_USER_BURST:20}
+      requested-tokens: ${RL_USER_TOKENS:1}
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always
