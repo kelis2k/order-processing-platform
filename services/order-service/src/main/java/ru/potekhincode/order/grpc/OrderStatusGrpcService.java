@@ -7,9 +7,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.server.service.GrpcService;
 import reactor.core.Disposable;
+import ru.potekhincode.order.exception.OrderAccessDeniedException;
+import ru.potekhincode.order.exception.OrderNotFoundException;
 import ru.potekhincode.order.model.Order;
 import ru.potekhincode.order.model.OrderStatus;
-import ru.potekhincode.order.repository.OrderRepository;
+import ru.potekhincode.order.security.Caller;
+import ru.potekhincode.order.service.OrderService;
 import ru.potekhincode.order.stream.OrderStatusEventBus;
 
 import java.util.UUID;
@@ -18,8 +21,9 @@ import java.util.UUID;
 @GrpcService
 @RequiredArgsConstructor
 public class OrderStatusGrpcService extends OrderStatusServiceGrpc.OrderStatusServiceImplBase {
-    private final OrderRepository orderRepository;
+
     private final OrderStatusEventBus eventBus;
+    private final OrderService orderService;
 
     @Override
     public void streamOrderStatus(StreamOrderStatusRequest request,
@@ -34,10 +38,19 @@ public class OrderStatusGrpcService extends OrderStatusServiceGrpc.OrderStatusSe
             return;
         }
 
-        Order order = orderRepository.findById(orderId).orElse(null);
-        if (order == null) {
+        Caller caller = new Caller(JwtServerInterceptor.USER_ID.get(), JwtServerInterceptor.ROLE.get());
+
+        Order order;
+        try {
+            order = orderService.requireVisible(orderId, caller);
+        } catch (OrderNotFoundException e) {
             responseObserver.onError(Status.NOT_FOUND
-                    .withDescription("Order not found: " + orderId)
+                    .withDescription(e.getMessage())
+                    .asRuntimeException());
+            return;
+        } catch (OrderAccessDeniedException e) {
+            responseObserver.onError(Status.PERMISSION_DENIED
+                    .withDescription(e.getMessage())
                     .asRuntimeException());
             return;
         }

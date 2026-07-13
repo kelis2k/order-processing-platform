@@ -13,6 +13,7 @@ import ru.potekhincode.order.dto.request.CreateOrderRequest;
 import ru.potekhincode.order.dto.response.OrderResponse;
 import ru.potekhincode.order.exception.InsufficientStockException;
 import ru.potekhincode.order.exception.InvalidStatusTransitionException;
+import ru.potekhincode.order.exception.OrderAccessDeniedException;
 import ru.potekhincode.order.exception.OrderNotFoundException;
 import ru.potekhincode.order.mapper.OrderMapper;
 import ru.potekhincode.order.model.*;
@@ -20,6 +21,7 @@ import ru.potekhincode.order.outbox.OutboxEventFactory;
 import ru.potekhincode.order.repository.OrderRepository;
 import ru.potekhincode.order.repository.OutboxRepository;
 import ru.potekhincode.order.repository.SagaStateRepository;
+import ru.potekhincode.order.security.Caller;
 import ru.potekhincode.order.service.OrderService;
 import ru.potekhincode.order.event.OrderStatusChangedEvent;
 
@@ -73,22 +75,32 @@ public class OrderServiceImpl implements OrderService {
         return orderMapper.toResponse(saved);
     }
 
-
-
     @Override
     @Transactional(readOnly = true)
-    public OrderResponse findById(UUID id) {
+    public Order requireVisible(UUID id, Caller caller) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new OrderNotFoundException(id));
 
-        return orderMapper.toResponse(order);
+        if (!caller.isAdmin() && !caller.owns(order.getUserId())) {
+            throw new OrderAccessDeniedException(id);
+        }
+        return order;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Page<OrderResponse> list(Pageable pageable) {
-        return orderRepository.findAll(pageable)
-                .map(orderMapper::toResponse);
+    public OrderResponse findById(UUID id, Caller caller) {
+        return orderMapper.toResponse(requireVisible(id, caller));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<OrderResponse> list(Pageable pageable, Caller caller) {
+        Page<Order> orders = caller.isAdmin()
+                ? orderRepository.findAll(pageable)
+                : orderRepository.findAllByUserId(caller.userId(), pageable);
+
+        return orders.map(orderMapper::toResponse);
     }
 
     @Transactional
@@ -131,5 +143,7 @@ public class OrderServiceImpl implements OrderService {
             log.info("Order {} cancelled (insufficient stock): {}", orderId, reason);
         }
     }
+
+
 
 }

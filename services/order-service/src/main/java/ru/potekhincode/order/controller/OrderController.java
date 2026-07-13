@@ -11,6 +11,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import ru.potekhincode.order.dto.request.CreateOrderRequest;
 import ru.potekhincode.order.dto.response.OrderResponse;
+import ru.potekhincode.order.security.Caller;
 import ru.potekhincode.order.service.OrderService;
 
 import java.util.UUID;
@@ -31,12 +32,15 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
-    public OrderResponse findById(@PathVariable UUID id) {
-        return orderService.findById(id);
+    public OrderResponse findById(@PathVariable UUID id,
+                                  @AuthenticationPrincipal Jwt jwt
+    ) {
+        return orderService.findById(id, Caller.from(jwt));
     }
 
     @GetMapping
-    public Page<OrderResponse> list(@PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
-        return orderService.list(pageable);
+    public Page<OrderResponse> list(@PageableDefault(size = 20, sort = "createdAt") Pageable pageable,
+                                    @AuthenticationPrincipal Jwt jwt) {
+        return orderService.list(pageable, Caller.from(jwt));
     }
 }
