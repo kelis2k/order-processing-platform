@@ -219,7 +219,7 @@ class OrderServiceImplTest {
         Order order = new Order();
         order.setStatus(OrderStatus.NEW);
 
-        orderService.transition(order, OrderStatus.RESERVED);
+        orderService.transition(order, OrderStatus.RESERVED, null);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.RESERVED);
     }
@@ -229,9 +229,10 @@ class OrderServiceImplTest {
         Order order = new Order();
         order.setStatus(OrderStatus.NEW);
 
-        assertThatThrownBy(() -> orderService.transition(order, OrderStatus.SHIPPED))
+        assertThatThrownBy(() -> orderService.transition(order, OrderStatus.SHIPPED, null))
                 .isInstanceOf(InvalidStatusTransitionException.class);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.NEW); // статус не изменился
+        verify(outboxRepository, never()).save(any());            // гард отработал до outbox — события нет
     }
 
     @Test
@@ -249,6 +250,8 @@ class OrderServiceImplTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.RESERVED);     // FSM NEW→RESERVED
         assertThat(saga.getState()).isEqualTo(SagaStatus.RESERVED);        // сага замкнулась
+        verify(outboxEventFactory).orderStatusChanged(order, null);        // RESERVED тоже уходит в Kafka
+        verify(outboxRepository).save(any());
     }
 
     @Test

@@ -104,11 +104,14 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Transactional
-    public void transition(Order order, OrderStatus target) {
+    public void transition(Order order, OrderStatus target, String reason) {
+
         if (!order.getStatus().canTransitionTo(target)) {
             throw new InvalidStatusTransitionException(order.getStatus(), target);
         }
+
         order.setStatus(target);
+        outboxRepository.save(outboxEventFactory.orderStatusChanged(order, reason));
         eventPublisher.publishEvent(
                 new OrderStatusChangedEvent(order.getId(), target, OffsetDateTime.now())
         );
@@ -118,10 +121,12 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public void onInventoryReserved(UUID orderId, boolean success, String reason) {
         SagaState saga = sagaStateRepository.findById(orderId).orElse(null);
+
         if (saga == null) {
             log.warn("No saga state for orderId={}, ignoring inventory.reserved", orderId);
             return;
         }
+
         // идемпотентность: at-least-once из outbox — реагируем только из ожидания резерва
         if (saga.getState() != SagaStatus.AWAITING_RESERVATION) {
             log.debug("Saga orderId={} already in state {}, skipping", orderId, saga.getState());
@@ -131,15 +136,14 @@ public class OrderServiceImpl implements OrderService {
         if (success) {
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new OrderNotFoundException(orderId));
-            transition(order, OrderStatus.RESERVED);   // FSM-гард NEW→RESERVED
+            transition(order, OrderStatus.RESERVED, null);   // FSM-гард NEW→RESERVED
             saga.setState(SagaStatus.RESERVED);
             log.info("Order {} reserved", orderId);
         } else {
             Order order = orderRepository.findById(orderId)
                             .orElseThrow(() -> new OrderNotFoundException(orderId));
-            transition(order, OrderStatus.CANCELLED);
+            transition(order, OrderStatus.CANCELLED, reason);
             saga.setState(SagaStatus.CANCELLED);
-            outboxRepository.save(outboxEventFactory.orderStatusChanged(order, reason));
             log.info("Order {} cancelled (insufficient stock): {}", orderId, reason);
         }
     }

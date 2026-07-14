@@ -52,6 +52,7 @@ public class OutboxAvroMapper {
         OrderStatusChangedPayload p = objectMapper.readValue(event.getPayload(), OrderStatusChangedPayload.class);
         return OrderStatusChanged.newBuilder()
                 .setOrderId(p.orderId())
+                .setUserId(p.userId())
                 .setStatus(p.status())
                 .setReason(p.reason())
                 .setTimestamp(Instant.ofEpochMilli(p.timestamp()))

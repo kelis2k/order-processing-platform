@@ -33,6 +33,7 @@ public class OutboxEventFactory {
     public OutboxEvent orderStatusChanged(Order order, String reason) {
         var payload = new OrderStatusChangedPayload(
                 order.getId().toString(),
+                order.getUserId(),
                 order.getStatus().name(),
                 reason,
                 System.currentTimeMillis());
