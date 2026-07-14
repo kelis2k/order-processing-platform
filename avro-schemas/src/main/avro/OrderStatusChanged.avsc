@@ -8,6 +8,11 @@
       "type": "string"
     },
     {
+      "name": "userId",
+      "type": "string",
+      "default": ""
+    },
+    {
       "name": "status",
       "type": "string"
     },

@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.spring.boot)
 }
 
+ext["testcontainers.version"] = libs.versions.testcontainers.get()
+
 dependencies {
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.data.mongo)
@@ -14,4 +16,19 @@ dependencies {
     implementation(project(":common"))
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
+    testImplementation(libs.spring.boot.starter.test)
+    testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(libs.testcontainers.junit)
+    testImplementation(libs.testcontainers.kafka)
+    testImplementation(libs.testcontainers.mongodb)
+}
+
+tasks.withType<Test> {
+    environment("DOCKER_HOST", "unix:///var/run/docker.sock")
+    environment("DOCKER_API_VERSION", "1.47")
+    environment("TESTCONTAINERS_RYUK_DISABLED", "true")
+    environment("HTTP_PROXY", "")
+    environment("HTTPS_PROXY", "")
+    environment("http_proxy", "")
+    environment("https_proxy", "")
 }

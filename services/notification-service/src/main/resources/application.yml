@@ -1,9 +1,29 @@
 server:
-  port: 8086
+  port: 8088
 
 spring:
   application:
     name: notification-service
+  data:
+    mongodb:
+      uri: ${MONGO_URI:mongodb://localhost:27017/notification_db}
+      auto-index-creation: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092,localhost:9093,localhost:9094}
+    consumer:
+      group-id: notification-service
+      auto-offset-reset: earliest
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+
+app:
+  kafka:
+    consumer:
+      retry:
+        initial-interval-ms: 1000
+        multiplier: 2.0
+        max-interval-ms: 10000
+        max-attempts: 5
 
 management:
   endpoints:
