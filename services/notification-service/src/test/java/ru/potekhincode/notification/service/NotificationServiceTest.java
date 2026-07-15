@@ -12,6 +12,7 @@ import ru.potekhincode.notification.exception.RecipientNotFoundException;
 import ru.potekhincode.notification.mail.EmailSender;
 import ru.potekhincode.notification.mail.EmailTemplateRenderer;
 import ru.potekhincode.notification.mail.RenderedEmail;
+import ru.potekhincode.notification.rateLimit.EmailRateLimiter;
 import ru.potekhincode.notification.model.DeliveryState;
 import ru.potekhincode.notification.model.Notification;
 import ru.potekhincode.notification.model.NotificationType;
@@ -47,12 +48,16 @@ class NotificationServiceTest {
     private EmailTemplateRenderer renderer;
     @Mock
     private EmailSender emailSender;
+    @Mock
+    private EmailRateLimiter rateLimiter;
 
     @InjectMocks
     private NotificationService notificationService;
 
+    /** Общий happy-путь: получатель есть, лимит не превышен, шаблон рендерится. */
     private void stubRecipientAndRender() {
         when(recipientService.require(USER_ID)).thenReturn(new Recipient(USER_ID, EMAIL, "notify"));
+        when(rateLimiter.tryAcquire(USER_ID)).thenReturn(true);
         when(renderer.render(any(NotificationType.class), anyMap())).thenReturn(RENDERED);
     }
 
@@ -130,6 +135,19 @@ class NotificationServiceTest {
                 .isInstanceOf(RecipientNotFoundException.class);
 
         verify(notificationRepository, never()).insert(any(Notification.class));
+        verify(emailSender, never()).send(any(), any(), any());
+    }
+
+    /** Лимит анти-спама превышен → SUPPRESSED, письмо не рендерим и не шлём (6.6). */
+    @Test
+    void rateLimitedShouldSuppressWithoutSending() {
+        when(recipientService.require(USER_ID)).thenReturn(new Recipient(USER_ID, EMAIL, "notify"));
+        when(rateLimiter.tryAcquire(USER_ID)).thenReturn(false);
+
+        notificationService.onOrderCreated(ORDER_ID, USER_ID);
+
+        assertThat(captureSaved().getState()).isEqualTo(DeliveryState.SUPPRESSED);
+        verify(renderer, never()).render(any(), anyMap());
         verify(emailSender, never()).send(any(), any(), any());
     }
 
