@@ -55,4 +55,7 @@ CLAUDE.md
 # Вынос в .secrets/dev + JWKS запланирован на этап 5.5 (см. Журнал решений).
 services/auth-service/src/main/resources/keys/
 .secrets/
-api.http
+
+### Личное, не для репозитория ###
+# Сценарии ручной проверки API (*.http), локальные скрипты окружения.
+local/

@@ -9,6 +9,8 @@ dependencies {
     implementation(libs.spring.boot.starter.data.mongo)
     implementation(libs.spring.boot.starter.mail)
     implementation(libs.spring.boot.starter.actuator)
+    implementation(libs.spring.boot.starter.mail)
+    implementation(libs.spring.boot.starter.thymeleaf)
     implementation(libs.spring.kafka)
     implementation(libs.kafka.avro.serializer)
     implementation(libs.avro)
@@ -21,6 +23,7 @@ dependencies {
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.kafka)
     testImplementation(libs.testcontainers.mongodb)
+    testImplementation(libs.greenmail)
 }
 
 tasks.withType<Test> {

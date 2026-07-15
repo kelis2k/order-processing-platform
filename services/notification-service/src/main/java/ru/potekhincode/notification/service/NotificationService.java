@@ -4,6 +4,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import ru.potekhincode.notification.mail.EmailSender;
+import ru.potekhincode.notification.mail.EmailTemplateRenderer;
+import ru.potekhincode.notification.mail.RenderedEmail;
 import ru.potekhincode.notification.model.DeliveryState;
 import ru.potekhincode.notification.model.Notification;
 import ru.potekhincode.notification.model.NotificationType;
@@ -12,6 +15,8 @@ import ru.potekhincode.notification.model.Recipient;
 import ru.potekhincode.notification.repository.NotificationRepository;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -20,6 +25,8 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final RecipientService recipientService;
+    private final EmailTemplateRenderer renderer;
+    private final EmailSender emailSender;
 
     public void onOrderCreated(String orderId, String userId) {
         record(NotificationType.ORDER_ACCEPTED, orderId, OrderStatuses.NEW, null, userId);
@@ -51,9 +58,28 @@ public class NotificationService {
             return;
         }
 
-        // 6.5: здесь будет реальная отправка через Spring Mail → MailHog
-        log.info("EMAIL → {}: заказ {} — {}{}",
-                recipient.getEmail(), orderId, status,
-                reason == null ? "" : " (" + reason + ")");
+        deliver(notification, recipient);
     }
+
+    private void deliver(Notification notification, Recipient recipient) {
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("orderId", notification.getAggregateId());
+        variables.put("status", notification.getStatus());
+        variables.put("reason", notification.getReason());
+        variables.put("username", recipient.getUsername());
+
+        try {
+            RenderedEmail email = renderer.render(notification.getType(), variables);
+            emailSender.send(recipient.getEmail(), email.subject(), email.body());
+            notification.setState(DeliveryState.SENT);
+        } catch (Exception e) {
+            notification.setState(DeliveryState.FAILED);
+            notification.setError(e.getMessage());
+            log.warn("Delivery FAILED for {} order={}: {}",
+                    notification.getType(), notification.getAggregateId(), e.getMessage());
+        }
+        notificationRepository.save(notification);
+    }
+
+
 }

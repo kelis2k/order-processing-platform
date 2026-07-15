@@ -28,5 +28,6 @@ public class Notification {
     private String reason;           // причина отмены, может быть null
     private String recipientEmail;
     private DeliveryState state;
+    private String error;
     private Instant createdAt;
 }

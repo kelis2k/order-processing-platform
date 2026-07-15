@@ -8,6 +8,12 @@ spring:
     mongodb:
       uri: ${MONGO_URI:mongodb://localhost:27017/notification_db}
       auto-index-creation: true
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092,localhost:9093,localhost:9094}
     consumer:
@@ -17,6 +23,8 @@ spring:
       schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
 
 app:
+  mail:
+    from: ${MAIL_FROM:no-reply@orders.local}
   kafka:
     consumer:
       retry:
