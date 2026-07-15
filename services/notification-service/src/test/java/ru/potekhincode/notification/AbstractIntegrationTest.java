@@ -1,5 +1,7 @@
 package ru.potekhincode.notification;
 
+import com.icegreen.greenmail.util.GreenMail;
+import com.icegreen.greenmail.util.ServerSetupTest;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -39,9 +41,13 @@ public abstract class AbstractIntegrationTest {
     protected static final KafkaContainer KAFKA =
             new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.0"));
 
+    /** SMTP-сервер в памяти (не контейнер) — реальная отправка писем в IT без MailHog. */
+    protected static final GreenMail GREENMAIL = new GreenMail(ServerSetupTest.SMTP);
+
     static {
         MONGO.start();
         KAFKA.start();
+        GREENMAIL.start();
     }
 
     @TestConfiguration
@@ -68,6 +74,9 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.data.mongodb.uri", () -> MONGO.getReplicaSetUrl("notification_db"));
         registry.add("spring.kafka.bootstrap-servers", KAFKA::getBootstrapServers);
         registry.add("spring.kafka.properties.schema.registry.url", () -> SCHEMA_REGISTRY_URL);
+        registry.add("spring.mail.host", () -> "localhost");
+        registry.add("spring.mail.port", () -> GREENMAIL.getSmtp().getPort());
+        registry.add("app.mail.from", () -> "no-reply@notification-it");
         // ретраи в тестах короткие: неизвестный получатель не должен растягивать прогон
         registry.add("app.kafka.consumer.retry.initial-interval-ms", () -> "200");
         registry.add("app.kafka.consumer.retry.max-interval-ms", () -> "500");

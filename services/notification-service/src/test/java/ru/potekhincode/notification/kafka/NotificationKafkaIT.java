@@ -1,7 +1,10 @@
 package ru.potekhincode.notification.kafka;
 
+import com.icegreen.greenmail.store.FolderException;
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import io.confluent.kafka.serializers.KafkaAvroSerializer;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import org.apache.avro.specific.SpecificRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -22,6 +25,7 @@ import ru.potekhincode.notification.model.NotificationType;
 import ru.potekhincode.notification.repository.NotificationRepository;
 import ru.potekhincode.notification.repository.RecipientRepository;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -51,9 +55,10 @@ class NotificationKafkaIT extends AbstractIntegrationTest {
     private RecipientRepository recipientRepository;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws FolderException {
         notificationRepository.deleteAll();
         recipientRepository.deleteAll();
+        GREENMAIL.purgeEmailFromAllMailboxes();
     }
 
     @Test
@@ -68,7 +73,7 @@ class NotificationKafkaIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void orderCreatedShouldRecordAcceptedNotification() {
+    void orderCreatedShouldRecordAcceptedNotification() throws MessagingException {
         String userId = UUID.randomUUID().toString();
         String orderId = UUID.randomUUID().toString();
         publish(USER_CREATED_TOPIC, userId, userCreated(userId, EMAIL));
@@ -81,13 +86,19 @@ class NotificationKafkaIT extends AbstractIntegrationTest {
             assertThat(n.getType()).isEqualTo(NotificationType.ORDER_ACCEPTED);
             assertThat(n.getStatus()).isEqualTo("NEW");
             assertThat(n.getRecipientEmail()).isEqualTo(EMAIL);
-            assertThat(n.getState()).isEqualTo(DeliveryState.PENDING);
+            assertThat(n.getState()).isEqualTo(DeliveryState.SENT);   // доставка отработала
         });
+
+        // и письмо реально ушло по SMTP (GreenMail), с подставленным orderId
+        assertThat(GREENMAIL.waitForIncomingEmail(TIMEOUT.toMillis(), 1)).isTrue();
+        MimeMessage received = GREENMAIL.getReceivedMessages()[0];
+        assertThat(received.getAllRecipients()[0]).hasToString(EMAIL);
+        assertThat(received.getSubject()).contains(orderId);
     }
 
     /** Получатель берётся из userId В САМОМ событии (ADR 0009) — проекции orderId→userId нет. */
     @Test
-    void statusChangedShouldRecordNotificationWithReason() {
+    void statusChangedShouldRecordNotificationWithReason() throws MessagingException, IOException {
         String userId = UUID.randomUUID().toString();
         String orderId = UUID.randomUUID().toString();
         String reason = "Insufficient stock for product p-1: requested 1, available 0";
@@ -102,7 +113,14 @@ class NotificationKafkaIT extends AbstractIntegrationTest {
             assertThat(n.getStatus()).isEqualTo("CANCELLED");
             assertThat(n.getReason()).isEqualTo(reason);
             assertThat(n.getRecipientEmail()).isEqualTo(EMAIL);
+            assertThat(n.getState()).isEqualTo(DeliveryState.SENT);
         });
+
+        // причина проехала до тела письма — блок th:if отработал (шаблон из Mongo).
+        // getContent() декодирует quoted-printable, иначе ASCII рвётся мягким переносом.
+        assertThat(GREENMAIL.waitForIncomingEmail(TIMEOUT.toMillis(), 1)).isTrue();
+        String body = (String) GREENMAIL.getReceivedMessages()[0].getContent();
+        assertThat(body).contains(reason);
     }
 
     /**
