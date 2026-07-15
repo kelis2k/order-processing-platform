@@ -12,6 +12,7 @@ import ru.potekhincode.notification.model.Notification;
 import ru.potekhincode.notification.model.NotificationType;
 import ru.potekhincode.notification.model.OrderStatuses;
 import ru.potekhincode.notification.model.Recipient;
+import ru.potekhincode.notification.rateLimit.EmailRateLimiter;
 import ru.potekhincode.notification.repository.NotificationRepository;
 
 import java.time.Instant;
@@ -27,6 +28,7 @@ public class NotificationService {
     private final RecipientService recipientService;
     private final EmailTemplateRenderer renderer;
     private final EmailSender emailSender;
+    private final EmailRateLimiter rateLimiter;
 
     public void onOrderCreated(String orderId, String userId) {
         record(NotificationType.ORDER_ACCEPTED, orderId, OrderStatuses.NEW, null, userId);
@@ -62,6 +64,14 @@ public class NotificationService {
     }
 
     private void deliver(Notification notification, Recipient recipient) {
+        if (!rateLimiter.tryAcquire(recipient.getUserId())) {
+            notification.setState(DeliveryState.SUPPRESSED);
+            log.info("Suppressed {} for order={} user={}: rate limit exceeded",
+                    notification.getType(), notification.getAggregateId(), recipient.getUserId());
+            notificationRepository.save(notification);
+            return;
+        }
+
         Map<String, Object> variables = new HashMap<>();
         variables.put("orderId", notification.getAggregateId());
         variables.put("status", notification.getStatus());

@@ -1,5 +1,5 @@
 package ru.potekhincode.notification.model;
 
 public enum DeliveryState {
-    PENDING, SENT, FAILED
+    PENDING, SENT, FAILED, SUPPRESSED
 }
