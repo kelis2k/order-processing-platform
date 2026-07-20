@@ -3,6 +3,7 @@ package ru.potekhincode.user.config;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;
 import io.confluent.kafka.serializers.KafkaAvroSerializer;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.avro.specific.SpecificRecord;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -18,6 +19,7 @@ import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.MicrometerConsumerListener;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import ru.potekhincode.avro.UserCreated;
@@ -41,7 +43,7 @@ public class KafkaConfig {
     private int topicReplicas;
 
     @Bean
-    public ConsumerFactory<String, UserCreated> userCreatedConsumerFactory() {
+    public ConsumerFactory<String, UserCreated> userCreatedConsumerFactory(MeterRegistry meterRegistry) {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
@@ -51,14 +53,17 @@ public class KafkaConfig {
         props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, KafkaAvroDeserializer.class.getName());
         props.put(KafkaAvroDeserializerConfig.SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl);
         props.put(KafkaAvroDeserializerConfig.SPECIFIC_AVRO_READER_CONFIG, true);
-        return new DefaultKafkaConsumerFactory<>(props);
+        DefaultKafkaConsumerFactory<String, UserCreated> factory = new DefaultKafkaConsumerFactory<>(props);
+        factory.addListener(new MicrometerConsumerListener<>(meterRegistry));   // consumer lag → Prometheus
+        return factory;
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, UserCreated> kafkaListenerContainerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, UserCreated> kafkaListenerContainerFactory(
+            ConsumerFactory<String, UserCreated> userCreatedConsumerFactory) {
         ConcurrentKafkaListenerContainerFactory<String, UserCreated> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(userCreatedConsumerFactory());
+        factory.setConsumerFactory(userCreatedConsumerFactory);
         return factory;
     }
 

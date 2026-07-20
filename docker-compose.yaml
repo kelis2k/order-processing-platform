@@ -320,6 +320,68 @@ services:
       - "8025:8025"   # Web UI
     networks: [backend]
 
+  # ---------------------------------------------------------------------------
+  # kafka-exporter — broker-side consumer lag (Шаг 7.2).
+  # Спрашивает у брокеров committed vs end offset → kafka_consumergroup_lag.
+  # Надёжнее client-side метрики (та NaN в покое и исчезает при падении консьюмера).
+  # ---------------------------------------------------------------------------
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    container_name: kafka-exporter
+    command:
+      - '--kafka.server=kafka-1:29092'
+      - '--kafka.server=kafka-2:29092'
+      - '--kafka.server=kafka-3:29092'
+    ports:
+      - "9308:9308"
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+    networks: [backend]
+
+  # ---------------------------------------------------------------------------
+  # Prometheus — сбор метрик со всех сервисов (Шаг 7.2).
+  # product-service — по имени в сети backend; остальные 6 запускаются на хосте
+  # (IntelliJ / java -jar) → host.docker.internal. В k8s (Этап 9) станет единообразно.
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: prometheus
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=7d'
+    ports:
+      - "9099:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      # wsl-host → IP WSL2-дистрибутива, где идут хостовые сервисы (java -jar / IntelliJ).
+      # host.docker.internal (Docker Desktop) до сервисов в WSL2 НЕ достаёт — нужен IP eth0 WSL.
+      # ⚠️ IP динамический: меняется при перезапуске WSL (`wsl --shutdown`) — обновить `hostname -I`.
+      - "wsl-host:172.21.156.231"
+    networks: [backend]
+
+  # ---------------------------------------------------------------------------
+  # Grafana — визуализация метрик из Prometheus (Шаг 7.2).
+  # Datasource прокидывается provisioning'ом — руками источник настраивать не надо.
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana
+    depends_on: [prometheus]
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    networks: [backend]
+
 volumes:
   kafka-1-data:
   kafka-2-data:
@@ -330,6 +392,8 @@ volumes:
   postgres-inventory-data:
   mongo-data:
   redis-data:
+  prometheus-data:
+  grafana-data:
 
 networks:
   backend:

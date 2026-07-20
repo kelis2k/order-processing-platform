@@ -1,0 +1,33 @@
+global:
+  scrape_interval: 10s
+  scrape_timeout: 8s
+
+scrape_configs:
+  # Prometheus сам про себя (полезно для проверки, что он жив)
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # kafka-exporter — broker-side consumer lag (kafka_consumergroup_lag)
+  - job_name: kafka-exporter
+    static_configs:
+      - targets: ['kafka-exporter:9308']
+
+  # Все Spring-сервисы: один job, per-target label application
+  - job_name: spring-actuator
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['product-service:8083']
+        labels: { application: product-service }
+      - targets: ['wsl-host:8086']
+        labels: { application: auth-service }
+      - targets: ['wsl-host:8082']
+        labels: { application: user-service }
+      - targets: ['wsl-host:8085']
+        labels: { application: order-service }
+      - targets: ['wsl-host:8084']
+        labels: { application: inventory-service }
+      - targets: ['wsl-host:8087']
+        labels: { application: api-gateway }
+      - targets: ['wsl-host:8088']
+        labels: { application: notification-service }

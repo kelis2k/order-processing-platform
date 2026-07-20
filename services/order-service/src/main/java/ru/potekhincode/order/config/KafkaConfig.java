@@ -3,6 +3,7 @@ package ru.potekhincode.order.config;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;
 import io.confluent.kafka.serializers.KafkaAvroSerializer;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.avro.specific.SpecificRecord;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -38,7 +39,7 @@ public class KafkaConfig {
 
     // ---- Consumer: inventory.reserved (ответ inventory оркестратору) ----
     @Bean
-    public ConsumerFactory<String, InventoryReserved> inventoryReservedConsumerFactory() {
+    public ConsumerFactory<String, InventoryReserved> inventoryReservedConsumerFactory(MeterRegistry meterRegistry) {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
@@ -48,14 +49,17 @@ public class KafkaConfig {
         props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, KafkaAvroDeserializer.class.getName());
         props.put(KafkaAvroDeserializerConfig.SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl);
         props.put(KafkaAvroDeserializerConfig.SPECIFIC_AVRO_READER_CONFIG, true);
-        return new DefaultKafkaConsumerFactory<>(props);
+        DefaultKafkaConsumerFactory<String, InventoryReserved> factory = new DefaultKafkaConsumerFactory<>(props);
+        factory.addListener(new MicrometerConsumerListener<>(meterRegistry));   // consumer lag → Prometheus
+        return factory;
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, InventoryReserved> kafkaListenerContainerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, InventoryReserved> kafkaListenerContainerFactory(
+            ConsumerFactory<String, InventoryReserved> inventoryReservedConsumerFactory) {
         ConcurrentKafkaListenerContainerFactory<String, InventoryReserved> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(inventoryReservedConsumerFactory());
+        factory.setConsumerFactory(inventoryReservedConsumerFactory);
         return factory;
     }
 

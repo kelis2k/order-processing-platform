@@ -3,6 +3,7 @@ package ru.potekhincode.inventory.config;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;
 import io.confluent.kafka.serializers.KafkaAvroSerializer;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -37,7 +38,7 @@ public class KafkaConfig {
     private int topicReplicas;
 
     @Bean
-    public ConsumerFactory<String, OrderCreated> orderCreatedConsumerFactory() {
+    public ConsumerFactory<String, OrderCreated> orderCreatedConsumerFactory(MeterRegistry meterRegistry) {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
@@ -47,14 +48,17 @@ public class KafkaConfig {
         props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, KafkaAvroDeserializer.class.getName());
         props.put(KafkaAvroDeserializerConfig.SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl);
         props.put(KafkaAvroDeserializerConfig.SPECIFIC_AVRO_READER_CONFIG, true);
-        return new DefaultKafkaConsumerFactory<>(props);
+        DefaultKafkaConsumerFactory<String, OrderCreated> factory = new DefaultKafkaConsumerFactory<>(props);
+        factory.addListener(new MicrometerConsumerListener<>(meterRegistry));   // consumer lag → Prometheus
+        return factory;
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, OrderCreated> kafkaListenerContainerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, OrderCreated> kafkaListenerContainerFactory(
+            ConsumerFactory<String, OrderCreated> orderCreatedConsumerFactory) {
         ConcurrentKafkaListenerContainerFactory<String, OrderCreated> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(orderCreatedConsumerFactory());
+        factory.setConsumerFactory(orderCreatedConsumerFactory);
         return factory;
     }
 
