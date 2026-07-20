@@ -18,6 +18,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
     implementation(project(":avro-schemas"))
     implementation("com.nimbusds:nimbus-jose-jwt")
+    implementation(libs.logstash.logback.encoder)
     runtimeOnly("org.flywaydb:flyway-core")
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")

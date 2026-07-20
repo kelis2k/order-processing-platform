@@ -19,6 +19,7 @@ dependencies {
     implementation(project(":proto-contracts"))
     implementation(project(":avro-schemas"))
     implementation(project(":common"))
+    implementation(libs.logstash.logback.encoder)
     implementation(libs.mapstruct)
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)

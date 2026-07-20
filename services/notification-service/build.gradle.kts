@@ -14,6 +14,7 @@ dependencies {
     implementation(libs.spring.kafka)
     implementation(libs.kafka.avro.serializer)
     implementation(libs.avro)
+    implementation(libs.logstash.logback.encoder)
     implementation(project(":avro-schemas"))
     implementation(project(":common"))
     compileOnly(libs.lombok)

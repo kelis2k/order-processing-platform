@@ -364,6 +364,34 @@ services:
     networks: [backend]
 
   # ---------------------------------------------------------------------------
+  # Loki — хранилище логов (Шаг 7.3). Single-binary, filesystem-storage.
+  # ---------------------------------------------------------------------------
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: loki
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./infra/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    networks: [backend]
+
+  # ---------------------------------------------------------------------------
+  # Promtail — тейлит JSON-логи сервисов из ./logs и шлёт в Loki (Шаг 7.3).
+  # ---------------------------------------------------------------------------
+  promtail:
+    image: grafana/promtail:3.1.1
+    container_name: promtail
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    depends_on: [loki]
+    volumes:
+      - ./infra/promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - ./logs:/var/log/app:ro
+      - promtail-positions:/promtail
+    networks: [backend]
+
+  # ---------------------------------------------------------------------------
   # Grafana — визуализация метрик из Prometheus (Шаг 7.2).
   # Datasource прокидывается provisioning'ом — руками источник настраивать не надо.
   # ---------------------------------------------------------------------------
@@ -394,6 +422,8 @@ volumes:
   redis-data:
   prometheus-data:
   grafana-data:
+  loki-data:
+  promtail-positions:
 
 networks:
   backend:

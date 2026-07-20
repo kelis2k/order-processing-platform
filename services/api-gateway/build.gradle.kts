@@ -11,6 +11,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
     implementation("com.github.ben-manes.caffeine:caffeine")
+    implementation(libs.logstash.logback.encoder)
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.reactor.test)
     testImplementation(platform(libs.testcontainers.bom))

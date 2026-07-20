@@ -17,6 +17,7 @@ dependencies {
     implementation(project(":avro-schemas"))
     implementation(project(":common"))
     implementation(libs.mapstruct)
+    implementation(libs.logstash.logback.encoder)
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
     annotationProcessor(libs.mapstruct.processor)
