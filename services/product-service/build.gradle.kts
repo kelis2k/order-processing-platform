@@ -27,6 +27,7 @@ dependencies {
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.mongodb)
     testImplementation(libs.spring.boot.starter.test)
+    runtimeOnly(libs.micrometer.registry.prometheus)
 }
 
 tasks.withType<Test> {

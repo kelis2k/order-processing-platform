@@ -24,6 +24,7 @@ dependencies {
     testImplementation(libs.testcontainers.kafka)
     testImplementation(libs.testcontainers.mongodb)
     testImplementation(libs.greenmail)
+    runtimeOnly(libs.micrometer.registry.prometheus)
 }
 
 tasks.withType<Test> {

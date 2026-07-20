@@ -16,6 +16,7 @@ dependencies {
     testImplementation(platform(libs.testcontainers.bom))
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.mockwebserver)
+    runtimeOnly(libs.micrometer.registry.prometheus)
 }
 
 dependencyManagement {

@@ -24,6 +24,9 @@ import ru.potekhincode.order.repository.SagaStateRepository;
 import ru.potekhincode.order.security.Caller;
 import ru.potekhincode.order.service.OrderService;
 import ru.potekhincode.order.event.OrderStatusChangedEvent;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 
 import java.util.List;
 import java.util.UUID;
@@ -41,8 +44,9 @@ public class OrderServiceImpl implements OrderService {
     private final SagaStateRepository sagaStateRepository;
     private final OutboxEventFactory outboxEventFactory;
     private final ApplicationEventPublisher eventPublisher;
-
-
+    private final MeterRegistry meterRegistry;
+    private Counter ordersPlaced;
+    private Counter sagaCompensations;
 
     @Override
     @Transactional
@@ -72,6 +76,7 @@ public class OrderServiceImpl implements OrderService {
 
         outboxRepository.save(outboxEventFactory.orderCreated(saved));
 
+        ordersPlaced.increment();
         return orderMapper.toResponse(saved);
     }
 
@@ -143,11 +148,20 @@ public class OrderServiceImpl implements OrderService {
             Order order = orderRepository.findById(orderId)
                             .orElseThrow(() -> new OrderNotFoundException(orderId));
             transition(order, OrderStatus.CANCELLED, reason);
+            sagaCompensations.increment();
             saga.setState(SagaStatus.CANCELLED);
             log.info("Order {} cancelled (insufficient stock): {}", orderId, reason);
         }
     }
 
-
+    @PostConstruct
+    void initMetrics() {
+        ordersPlaced = Counter.builder("orders.placed")
+                .description("Всего оформлено заказов")
+                .register(meterRegistry);
+        sagaCompensations = Counter.builder("saga.compensations")
+                .description("Всего компенсаций SAGA (отмен заказа)")
+                .register(meterRegistry);
+    }
 
 }

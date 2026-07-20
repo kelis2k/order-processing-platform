@@ -25,6 +25,7 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
     runtimeOnly("org.flywaydb:flyway-core")
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
+    runtimeOnly(libs.micrometer.registry.prometheus)
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.grpc.inprocess)
     testImplementation(platform(libs.testcontainers.bom))
