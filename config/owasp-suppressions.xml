@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+
+    <!-- ═══ Ложные срабатывания (чужой стек). Пересмотр — при смене реализации/крупном бампе. ═══ -->
+
+    <!-- CVE-2026-33186 — authorization bypass в gRPC-Go (routing :path в Go-сервере).
+         Наши io.grpc:* — grpc-JAVA: отдельная кодовая база и график релизов, не затронуты.
+         NVD матчит CPE 'grpc' на оба стека → ложное срабатывание на всех 8 grpc-артефактах.
+         Источник: https://nvd.nist.gov/vuln/detail/CVE-2026-33186 -->
+    <suppress>
+        <notes><![CDATA[
+            gRPC-Go-only (HTTP/2 :path routing). Артефакты io.grpc:* — grpc-java, не подвержены.
+            Пересмотреть при смене реализации gRPC. Проверено 2026-07-21.
+        ]]></notes>
+        <packageUrl regex="true">^pkg:maven/io\.grpc/.*@.*$</packageUrl>
+        <cve>CVE-2026-33186</cve>
+    </suppress>
+
+    <!-- CVE-2026-0994 — DoS в google.protobuf.json_format.ParseDict() (Python protobuf).
+         У нас com.google.protobuf:protobuf-java (Java) — пути json_format/ParseDict нет. FP. -->
+    <suppress>
+        <notes><![CDATA[
+            Python-protobuf (json_format.ParseDict). Java protobuf-java этот путь не содержит.
+            Проверено 2026-07-21.
+        ]]></notes>
+        <packageUrl regex="true">^pkg:maven/com\.google\.protobuf/protobuf-java@.*$</packageUrl>
+        <cve>CVE-2026-0994</cve>
+    </suppress>
+
+</suppressions>

@@ -68,3 +68,6 @@ logs/
 # Аварийные дампы JVM (напр. падение Gradle-демона в WSL2).
 hs_err_pid*.log
 replay_pid*.log
+
+# OWASP Dependency-Check: кэш базы NVD и отчёты
+.dependency-check-data/

@@ -7,7 +7,8 @@ avro                = "1.11.3"
 confluent           = "7.6.0"
 grpc                = "1.63.0"
 grpc-spring         = "3.1.0.RELEASE"
-protobuf            = "3.25.3"
+protobuf            = "3.25.5"
+jackson             = "2.18.8"
 mapstruct           = "1.5.5.Final"
 lombok              = "1.18.32"
 jjwt                = "0.12.5"
@@ -39,6 +40,7 @@ grpc-protobuf                   = { module = "io.grpc:grpc-protobuf", version.re
 grpc-spring                     = { module = "net.devh:grpc-spring-boot-starter", version.ref = "grpc-spring" }
 grpc-inprocess                  = { module = "io.grpc:grpc-inprocess", version.ref = "grpc" }
 protobuf-java                   = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+jackson-bom                     = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson" }
 mapstruct                       = { module = "org.mapstruct:mapstruct", version.ref = "mapstruct" }
 mapstruct-processor             = { module = "org.mapstruct:mapstruct-processor", version.ref = "mapstruct" }
 lombok                          = { module = "org.projectlombok:lombok", version.ref = "lombok" }
