@@ -1,0 +1,18 @@
+global:
+  # MailHog принимает SMTP без TLS и без auth.
+  smtp_smarthost: 'mailhog:1025'
+  smtp_from: 'alertmanager@order-platform.local'
+  smtp_require_tls: false
+
+route:
+  receiver: mailhog-email
+  group_by: ['alertname', 'application']
+  group_wait: 10s        # подождать «соседей» перед первым письмом (dev: коротко)
+  group_interval: 1m     # как часто слать апдейты по уже открытой группе
+  repeat_interval: 3h    # как часто напоминать о неутихшем алерте
+
+receivers:
+  - name: mailhog-email
+    email_configs:
+      - to: 'oncall@order-platform.local'
+        send_resolved: true   # прислать и «RESOLVED», когда алерт погас

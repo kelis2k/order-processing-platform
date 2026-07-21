@@ -2,6 +2,16 @@ global:
   scrape_interval: 10s
   scrape_timeout: 8s
 
+# Alerting-правила читаются отсюда (абсолютный путь = каталог монтирования).
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+# Куда Prometheus отправляет сработавшие алерты.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
 scrape_configs:
   # Prometheus сам про себя (полезно для проверки, что он жив)
   - job_name: prometheus

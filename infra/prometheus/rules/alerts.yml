@@ -1,0 +1,65 @@
+groups:
+  - name: order-platform-alerts
+    rules:
+
+      # ── 1. Высокая доля 5xx (плановый пункт: error rate) ──────────────
+      # NaN при нулевом трафике (0/0) → сравнение false → алерт молчит.
+      - alert: HighHttpErrorRate
+        expr: |
+          sum by (application) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+          /
+          sum by (application) (rate(http_server_requests_seconds_count[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Высокая доля 5xx в {{ $labels.application }}"
+          description: "{{ $labels.application }}: {{ $value | humanizePercentage }} ответов 5xx за 5m (порог 5%)."
+
+      # ── 2. Лаг Kafka-консьюмера (плановый пункт: consumer lag) ─────────
+      # broker-side метрика kafka-exporter; clamp_min гасит -1 у партиций без коммита.
+      - alert: HighKafkaConsumerLag
+        expr: sum by (consumergroup) (clamp_min(kafka_consumergroup_lag, 0)) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Растёт лаг консьюмера {{ $labels.consumergroup }}"
+          description: "consumergroup {{ $labels.consumergroup }}: лаг {{ $value }} (порог 100) держится 5m."
+
+      # ── 3. Заполнение JVM heap (плановый пункт: JVM heap) ─────────────
+      # {area="heap"} > 0 отсекает пулы с max=-1 (напр. G1 Eden) — проверим вживую.
+      - alert: HighJvmHeapUsage
+        expr: |
+          sum by (application) (jvm_memory_used_bytes{area="heap"})
+          /
+          sum by (application) (jvm_memory_max_bytes{area="heap"} > 0)
+          > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Heap под завязку в {{ $labels.application }}"
+          description: "{{ $labels.application }}: heap {{ $value | humanizePercentage }} от max (порог 85%) за 10m."
+
+      # ── 4. Всплеск SAGA-компенсаций (плановый пункт: saga compensation rate) ──
+      # Компенсация — легитимный путь (нет товара → отмена), поэтому не «>0», а спайк.
+      - alert: SagaCompensationsSpike
+        expr: increase(saga_compensations_total[10m]) > 3
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Всплеск SAGA-компенсаций"
+          description: "За 10m компенсацией отменено {{ $value }} заказов (порог 3) — возможен системный сбой, а не штатные отмены."
+
+      # ── 5. Таргет недоступен (инфраструктурный critical) ──────
+      - alert: TargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Таргет {{ $labels.job }} / {{ $labels.application }} недоступен"
+          description: "Prometheus не может собрать метрики с {{ $labels.instance }} (job {{ $labels.job }}) более 1m."

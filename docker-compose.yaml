@@ -349,6 +349,7 @@ services:
     container_name: prometheus
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -361,6 +362,17 @@ services:
       # host.docker.internal (Docker Desktop) до сервисов в WSL2 НЕ достаёт — нужен IP eth0 WSL.
       # ⚠️ IP динамический: меняется при перезапуске WSL (`wsl --shutdown`) — обновить `hostname -I`.
       - "wsl-host:172.21.156.231"
+    networks: [backend]
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    volumes:
+      - ./infra/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+    ports:
+      - "9095:9093"
     networks: [backend]
 
   # ---------------------------------------------------------------------------
@@ -439,6 +451,7 @@ volumes:
   grafana-data:
   loki-data:
   promtail-positions:
+
 
 networks:
   backend:
