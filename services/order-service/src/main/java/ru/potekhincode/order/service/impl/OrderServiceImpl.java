@@ -155,7 +155,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @PostConstruct
-    void initMetrics() {
+    public void initMetrics() {
         ordersPlaced = Counter.builder("orders.placed")
                 .description("Всего оформлено заказов")
                 .register(meterRegistry);
