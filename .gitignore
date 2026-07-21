@@ -59,3 +59,12 @@ services/auth-service/src/main/resources/keys/
 ### Личное, не для репозитория ###
 # Сценарии ручной проверки API (*.http), локальные скрипты окружения.
 local/
+
+### Runtime-артефакты (не для репозитория) ###
+# OpenTelemetry Java agent (24 МБ) — качается `make otel-agent`, версия пинится в Makefile.
+infra/otel/*.jar
+# Логи сервисов, тейлятся Promtail'ом (шаг 7.3); каталог создаётся при запуске.
+logs/
+# Аварийные дампы JVM (напр. падение Gradle-демона в WSL2).
+hs_err_pid*.log
+replay_pid*.log

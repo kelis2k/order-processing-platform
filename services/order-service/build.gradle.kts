@@ -20,6 +20,7 @@ dependencies {
     implementation(project(":avro-schemas"))
     implementation(project(":common"))
     implementation(libs.logstash.logback.encoder)
+    implementation(libs.opentelemetry.api)
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
     annotationProcessor(libs.mapstruct.processor)

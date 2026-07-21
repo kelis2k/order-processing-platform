@@ -410,6 +410,21 @@ services:
       - grafana-data:/var/lib/grafana
     networks: [backend]
 
+  # ---------------------------------------------------------------------------
+  # Jaeger — приём/хранение/визуализация трейсов (Шаг 7.4). All-in-one.
+  # Принимает OTLP напрямую (агенту не нужен отдельный collector).
+  # ---------------------------------------------------------------------------
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    container_name: jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"   # UI
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+    networks: [backend]
+
 volumes:
   kafka-1-data:
   kafka-2-data:

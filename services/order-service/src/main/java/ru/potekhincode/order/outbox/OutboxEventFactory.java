@@ -2,10 +2,15 @@ package ru.potekhincode.order.outbox;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.context.Context;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import ru.potekhincode.order.model.Order;
 import ru.potekhincode.order.model.OutboxEvent;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -56,6 +61,14 @@ public class OutboxEventFactory {
             throw new IllegalStateException("Failed to serialize " + eventType + " payload", e);
         }
 
+        event.setTraceContext(currentTraceparent());   // сшивка трейса сквозь Outbox (Шаг 7.4, вар. B)
         return event;
+    }
+
+    private String currentTraceparent() {
+        Map<String, String> carrier = new HashMap<>();
+        GlobalOpenTelemetry.getPropagators().getTextMapPropagator()
+                .inject(Context.current(), carrier, (c, k, v) -> { if (c != null) c.put(k, v); });
+        return carrier.get("traceparent");
     }
 }

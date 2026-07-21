@@ -47,4 +47,7 @@ public class OutboxEvent {
 
     @Column(name = "published_at")
     private OffsetDateTime publishedAt;
+
+    @Column(name = "trace_context", length = 64)
+    private String traceContext;
 }

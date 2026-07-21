@@ -29,3 +29,8 @@ k3d-up: ## [Этап 9] Создать k3d-кластер и задеплоит�
 
 inject-secrets: ## [Этап 9] Зашифровать .secrets/dev и применить в k3d
 	@echo "inject-secrets: будет реализован на этапе 9"
+OTEL_AGENT_VERSION := 2.29.0
+otel-agent: ## [Этап 7.4] Скачать OpenTelemetry Java agent (версия зафиксирована ради воспроизводимости)
+	mkdir -p infra/otel
+	curl -sL -o infra/otel/opentelemetry-javaagent.jar \
+		https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v$(OTEL_AGENT_VERSION)/opentelemetry-javaagent.jar
