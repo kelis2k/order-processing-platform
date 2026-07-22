@@ -2,8 +2,8 @@ import org.owasp.dependencycheck.gradle.extension.DependencyCheckExtension
 
 plugins {
     java
-    id("org.springframework.boot") version "3.4.5" apply false
-    id("io.spring.dependency-management") version "1.1.5" apply false
+    alias(libs.plugins.spring.boot) apply false
+    alias(libs.plugins.spring.dependency) apply false
     id("org.owasp.dependencycheck") version "12.1.0" apply false
 }
 
