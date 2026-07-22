@@ -39,3 +39,38 @@ jobs:
             -f services/product-service/Dockerfile \
             -t product-service:${{ github.sha }} \
             .
+  security-scan:
+    name: Dependency-Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      # Ключ с датой → база освежается раз в сутки; restore-keys подтянет вчерашнюю,
+      # плагин догрузит только дельту (иначе каждый прогон качал бы всю базу NVD).
+      - id: nvddate
+        run: echo "date=$(date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: .dependency-check-data
+          key: nvd-${{ runner.os }}-${{ steps.nvddate.outputs.date }}
+          restore-keys: nvd-${{ runner.os }}-
+
+      - run: chmod +x gradlew
+
+      - name: OWASP Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: ./gradlew dependencyCheckAnalyze --no-daemon
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: '**/build/reports/dependency-check-report.html'
