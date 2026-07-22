@@ -16,6 +16,18 @@
         <cve>CVE-2026-33186</cve>
     </suppress>
 
+    <!-- CVE-2024-11407 — DoS через data corruption в gRPC-C++ (zero-copy TCP,
+         channel arg GRPC_ARG_TCP_TX_ZEROCOPY_ENABLED). Наши io.grpc:* — grpc-java,
+         ни C-core, ни этого arg нет. FP, как CVE-2026-33186. -->
+    <suppress>
+        <notes><![CDATA[
+            gRPC-C++-only (zero-copy TCP data corruption). Артефакты io.grpc:* — grpc-java, не подвержены.
+            Проверено 2026-07-22.
+        ]]></notes>
+        <packageUrl regex="true">^pkg:maven/io\.grpc/.*@.*$</packageUrl>
+        <cve>CVE-2024-11407</cve>
+    </suppress>
+
     <!-- CVE-2026-0994 — DoS в google.protobuf.json_format.ParseDict() (Python protobuf).
          У нас com.google.protobuf:protobuf-java (Java) — пути json_format/ParseDict нет. FP. -->
     <suppress>

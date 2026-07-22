@@ -54,7 +54,7 @@ subprojects {
             apiKey = (findProperty("nvdApiKey") as String?) ?: System.getenv("NVD_API_KEY")
             delay = 4000
         }
-        failBuildOnCVSS = 11.0f
+        failBuildOnCVSS = 7.0f
         formats = listOf("HTML", "SARIF", "JSON")
         data { directory = "$rootDir/.dependency-check-data" }
         suppressionFile = "$rootDir/config/owasp-suppressions.xml"
