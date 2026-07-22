@@ -46,6 +46,17 @@ jobs:
             -f services/product-service/Dockerfile \
             -t product-service:${{ github.sha }} \
             .
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: product-service:${{ github.sha }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          vuln-type: os,library
+          exit-code: '1'
+          trivyignores: .trivyignore
+
   security-scan:
     name: Dependency-Check
     runs-on: ubuntu-latest
