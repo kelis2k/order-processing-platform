@@ -36,6 +36,13 @@ spring:
 grpc:
   server:
     port: 9090
+    security:
+      enabled: true
+      certificate-chain: file:${TLS_DIR:.secrets/dev/tls}/inventory-server.crt
+      private-key: file:${TLS_DIR:.secrets/dev/tls}/inventory-server.key
+      protocols: TLSv1.3
+      client-auth: REQUIRE
+      trust-cert-collection: file:${TLS_DIR:.secrets/dev/tls}/ca.crt
 
 management:
   endpoints:

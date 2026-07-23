@@ -3,7 +3,7 @@ COMPOSE := docker compose
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build-jars dev-up dev-down dev-logs dev-reset k3d-up inject-secrets
+.PHONY: help build-jars dev-up dev-down dev-logs dev-reset k3d-up inject-secrets tls-certs
 
 help: ## Список доступных команд
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -34,3 +34,6 @@ otel-agent: ## [Этап 7.4] Скачать OpenTelemetry Java agent (верс�
 	mkdir -p infra/otel
 	curl -sL -o infra/otel/opentelemetry-javaagent.jar \
 		https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v$(OTEL_AGENT_VERSION)/opentelemetry-javaagent.jar
+
+tls-certs: ## [8.3] Сгенерировать dev-PKI для gRPC TLS (CA + сертификаты сервисов)
+	./infra/tls/gen-certs.sh

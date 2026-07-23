@@ -34,6 +34,9 @@ jobs:
           openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$KEYS/jwt-private.pem"
           openssl pkey -in "$KEYS/jwt-private.pem" -pubout -out "$KEYS/jwt-public.pem"
 
+      - name: Generate dev TLS certificates
+        run: ./infra/tls/gen-certs.sh
+
       - name: Build & unit tests
         run: ./gradlew build --no-daemon
 

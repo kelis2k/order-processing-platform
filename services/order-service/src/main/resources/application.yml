@@ -40,10 +40,22 @@ spring:
 grpc:
   server:
     port: 9091
+    security:
+      enabled: true
+      certificate-chain: file:${TLS_DIR:.secrets/dev/tls}/order-server.crt
+      private-key: file:${TLS_DIR:.secrets/dev/tls}/order-server.key
+      protocols: TLSv1.3
   client:
     inventory:
       address: 'static://localhost:9090'
-      negotiation-type: plaintext
+      negotiation-type: TLS
+      security:
+        trust-cert-collection: file:${TLS_DIR:.secrets/dev/tls}/ca.crt
+        client-auth-enabled: true
+        certificate-chain: file:${TLS_DIR:.secrets/dev/tls}/order-client.crt
+        private-key: file:${TLS_DIR:.secrets/dev/tls}/order-client.key
+        protocols: TLSv1.3
+
 management:
   endpoints:
     web:
