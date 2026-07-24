@@ -1,4 +1,8 @@
 import org.owasp.dependencycheck.gradle.extension.DependencyCheckExtension
+import org.gradle.testing.jacoco.plugins.JacocoPluginExtension
+import org.gradle.testing.jacoco.tasks.JacocoReport
+import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification
+import org.gradle.api.tasks.PathSensitivity
 
 plugins {
     java
@@ -11,6 +15,10 @@ group = "ru.potekhincode"
 version = "1.0-SNAPSHOT"
 
 val jacksonBomVersion = libs.versions.jackson.get()
+
+val jacocoExclusions = listOf(
+    "**/*Application*",
+)
 
 subprojects {
     apply(plugin = "java")
@@ -44,11 +52,13 @@ subprojects {
         useJUnitPlatform()
     }
 
-    // OWASP Dependency-Check — per-project (не aggregate: агрегатор резолвит чужие
-    // конфигурации, что Gradle 9 запрещает как unsafe). Каждый модуль сканирует свой
-    // classpath; кэш NVD и suppression — общие по $rootDir. Типизированный аксессор
-    // dependencyCheck{} в subprojects недоступен (плагин применён через apply()),
-    // поэтому configure<DependencyCheckExtension>.
+    tasks.withType<JavaCompile>().configureEach {
+        inputs.file(rootProject.file("lombok.config"))
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+            .withPropertyName("lombokConfig")
+    }
+
+
     configure<DependencyCheckExtension> {
         nvd {
             apiKey = (findProperty("nvdApiKey") as String?) ?: System.getenv("NVD_API_KEY")
@@ -63,6 +73,51 @@ subprojects {
             assemblyEnabled = false      // .NET — не наш стек
             nodeEnabled = false          // npm — не наш стек
             ossIndexEnabled = false      // сетевой Sonatype OSS Index: анонимный rate-limit роняет анализ; полагаемся на NVD
+        }
+    }
+
+
+    apply(plugin = "jacoco")
+
+    configure<JacocoPluginExtension> {
+        toolVersion = "0.8.12"
+    }
+
+    tasks.withType<Test>().configureEach {
+        finalizedBy(tasks.named("jacocoTestReport"))
+    }
+
+    tasks.withType<JacocoReport>().configureEach {
+        dependsOn(tasks.withType<Test>())
+        reports {
+            xml.required.set(true)
+            html.required.set(true)
+        }
+        classDirectories.setFrom(
+            classDirectories.files.map { fileTree(it) { exclude(jacocoExclusions) } }
+        )
+    }
+
+
+    if (path.startsWith(":services:")) {
+        tasks.withType<JacocoCoverageVerification>().configureEach {
+            dependsOn(tasks.withType<Test>())
+            classDirectories.setFrom(
+                classDirectories.files.map { fileTree(it) { exclude(jacocoExclusions) } }
+            )
+            violationRules {
+                rule {
+                    limit {
+                        counter = "INSTRUCTION"
+                        value = "COVEREDRATIO"
+                        minimum = "0.80".toBigDecimal()
+                    }
+                }
+            }
+        }
+
+        tasks.named("check") {
+            dependsOn(tasks.withType<JacocoCoverageVerification>())
         }
     }
 }
