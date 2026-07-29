@@ -1,14 +1,6 @@
-# =============================================================================
-# Сборка:
-#   docker build -f infra/docker/Dockerfile.service \
-#     --build-arg SERVICE=order-service --build-arg PORT=8085 \
-#     -t order-service:latest .
-# =============================================================================
-
 FROM eclipse-temurin:21-jre-alpine AS extractor
 ARG SERVICE
 WORKDIR /extract
-# jar кладём ВНЕ каталога распаковки: extract требует, чтобы --destination был пуст
 COPY services/${SERVICE}/build/libs/${SERVICE}.jar /tmp/app.jar
 RUN java -Djarmode=tools -jar /tmp/app.jar extract --layers --launcher --destination /extract
 
@@ -19,14 +11,8 @@ RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
 WORKDIR /app
 
-# JSON-логи пишутся в ${LOGS_DIR:-logs} относительно /app
-# /app принадлежит root, поэтому каталог создаём заранее и отдаём appuser —
-# иначе logback падает с FileNotFoundException при старте.
 RUN mkdir -p /app/logs && chown appuser:appgroup /app/logs
 
-# Владелец задаётся флагом --chown прямо в COPY. Отдельный `RUN chown -R /app`
-# стоил бы +55..113 МБ на образ: смена владельца перезаписывает файл в новом
-# слое, то есть копирует ВСЕ зависимости второй раз.
 COPY --chown=appuser:appgroup --from=extractor /extract/dependencies/ ./
 COPY --chown=appuser:appgroup --from=extractor /extract/spring-boot-loader/ ./
 COPY --chown=appuser:appgroup --from=extractor /extract/snapshot-dependencies/ ./

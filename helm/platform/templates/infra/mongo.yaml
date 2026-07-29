@@ -1,0 +1,46 @@
+{{- if .Values.infra.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  labels: { app.kubernetes.io/name: mongo }
+spec:
+  ports:
+    - { name: mongo, port: 27017, targetPort: mongo }
+  selector: { app.kubernetes.io/name: mongo }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+spec:
+  serviceName: mongo
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: mongo }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: mongo }
+    spec:
+      containers:
+        - name: mongo
+          image: {{ .Values.infra.mongo.image }}
+          ports:
+            - { name: mongo, containerPort: 27017 }
+          readinessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+          volumeMounts:
+            - { name: data, mountPath: /data/db }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: { storage: {{ .Values.infra.mongo.storage }} }
+{{- end }}

@@ -1,0 +1,24 @@
+dependencies:
+- name: microservice
+  repository: file://../microservice
+  version: 0.1.0
+- name: microservice
+  repository: file://../microservice
+  version: 0.1.0
+- name: microservice
+  repository: file://../microservice
+  version: 0.1.0
+- name: microservice
+  repository: file://../microservice
+  version: 0.1.0
+- name: microservice
+  repository: file://../microservice
+  version: 0.1.0
+- name: microservice
+  repository: file://../microservice
+  version: 0.1.0
+- name: microservice
+  repository: file://../microservice
+  version: 0.1.0
+digest: sha256:1a965ba8391e6db4a5d75d7e33a0d80e7a10725f4d32d52dc47ebd49cb27cfc7
+generated: "2026-07-29T14:06:17.93084123+03:00"

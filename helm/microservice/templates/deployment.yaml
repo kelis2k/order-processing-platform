@@ -26,6 +26,11 @@ spec:
             - name: http
               containerPort: {{ .Values.containerPort }}
               protocol: TCP
+            {{- range .Values.extraPorts }}
+            - name: {{ .name }}
+              containerPort: {{ .port }}
+              protocol: TCP
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "microservice.fullname" . }}-config
@@ -43,3 +48,11 @@ spec:
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

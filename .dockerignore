@@ -7,8 +7,6 @@
 **/.gradle
 build
 **/build
-# Исключение: bootJar'ы собираются на хосте и копируются в Docker-образ
-# (см. infra/docker/Dockerfile.service)
 !services/*/build/libs/*.jar
 
 # IDE

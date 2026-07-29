@@ -1,0 +1,63 @@
+{{- if .Values.infra.enabled }}
+{{- range $name, $pg := .Values.infra.postgres.instances }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-{{ $name }}
+  labels: { app.kubernetes.io/name: postgres-{{ $name }} }
+spec:
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+  selector: { app.kubernetes.io/name: postgres-{{ $name }} }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-{{ $name }}
+spec:
+  serviceName: postgres-{{ $name }}
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: postgres-{{ $name }} }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: postgres-{{ $name }} }
+    spec:
+      containers:
+        - name: postgres
+          image: {{ $.Values.infra.postgres.image }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - { name: POSTGRES_DB,       value: {{ $pg.db | quote }} }
+            - { name: POSTGRES_USER,     value: {{ $pg.user | quote }} }
+            - { name: POSTGRES_PASSWORD, value: {{ $pg.password | quote }} }
+            - { name: PGDATA,            value: /var/lib/postgresql/data/pgdata }
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ $pg.user | quote }}, "-d", {{ $pg.db | quote }}]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ $pg.user | quote }}]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 50m,  memory: 96Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: { storage: {{ $.Values.infra.postgres.storage }} }
+{{- end }}
+{{- end }}

@@ -71,3 +71,6 @@ replay_pid*.log
 
 # OWASP Dependency-Check: кэш базы NVD и отчёты
 .dependency-check-data/
+
+# Helm: собранные подчарты umbrella (артефакт helm dependency build)
+helm/platform/charts/

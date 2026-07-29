@@ -1,0 +1,212 @@
+infra:
+  enabled: true
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    clusterId: "MkU3OEVBNTcwNTJENDM2Qk"
+    heapOpts: "-Xms512m -Xmx512m"
+    storage: 2Gi
+
+  schemaRegistry:
+    image: confluentinc/cp-schema-registry:7.6.1
+    heapOpts: "-Xms256m -Xmx384m"
+
+  postgres:
+    image: postgres:15.7-alpine
+    storage: 1Gi
+    instances:
+      auth:      { db: auth_db,      user: auth,           password: auth }
+      user:      { db: user_db,      user: user_svc,       password: user_svc }
+      order:     { db: order_db,     user: order_svc,      password: order_svc }
+      inventory: { db: inventory_db, user: inventory_svc,  password: inventory_svc }
+
+  mongo:
+    image: mongo:7.0
+    storage: 1Gi
+
+  redis:
+    image: redis:7.2-alpine
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+
+javaOpts: &javaOpts "-XX:MaxRAMPercentage=50"
+
+serviceResources: &serviceResources
+  requests: { cpu: 100m, memory: 384Mi }
+  limits:   { cpu: "1",  memory: 768Mi }
+
+api-gateway:
+  enabled: true
+  nameOverride: api-gateway
+  fullnameOverride: api-gateway
+  image: { repository: api-gateway, tag: latest, pullPolicy: IfNotPresent }
+  containerPort: 8087
+  service: { type: ClusterIP, port: 8087 }
+  autoscaling: { enabled: false }
+  resources: *serviceResources
+  config:
+    JAVA_TOOL_OPTIONS: *javaOpts
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    AUTH_URI: http://auth-service:8086
+    USER_URI: http://user-service:8082
+    PRODUCT_URI: http://product-service:8083
+    ORDER_URI: http://order-service:8085
+    AUTH_JWKS_URI: http://auth-service:8086/.well-known/jwks.json
+
+auth-service:
+  enabled: true
+  nameOverride: auth-service
+  fullnameOverride: auth-service
+  image: { repository: auth-service, tag: latest, pullPolicy: IfNotPresent }
+  containerPort: 8086
+  service: { type: ClusterIP, port: 8086 }
+  autoscaling: { enabled: false }
+  resources: *serviceResources
+  config:
+    JAVA_TOOL_OPTIONS: *javaOpts
+    SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-auth:5432/auth_db
+    SPRING_DATASOURCE_USERNAME: auth
+    SPRING_DATASOURCE_PASSWORD: auth
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    KAFKA_BOOTSTRAP: kafka:9092
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    APP_KAFKA_TOPIC_REPLICAS: "1"
+    ADMIN_EMAIL: admin@orders.local
+
+user-service:
+  enabled: true
+  nameOverride: user-service
+  fullnameOverride: user-service
+  image: { repository: user-service, tag: latest, pullPolicy: IfNotPresent }
+  containerPort: 8082
+  service: { type: ClusterIP, port: 8082 }
+  autoscaling: { enabled: false }
+  resources: *serviceResources
+  config:
+    JAVA_TOOL_OPTIONS: *javaOpts
+    SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-user:5432/user_db
+    SPRING_DATASOURCE_USERNAME: user_svc
+    SPRING_DATASOURCE_PASSWORD: user_svc
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    KAFKA_BOOTSTRAP: kafka:9092
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    APP_KAFKA_TOPIC_REPLICAS: "1"
+    AUTH_JWKS_URI: http://auth-service:8086/.well-known/jwks.json
+
+product-service:
+  enabled: true
+  nameOverride: product-service
+  fullnameOverride: product-service
+  image: { repository: product-service, tag: latest, pullPolicy: IfNotPresent }
+  containerPort: 8083
+  service: { type: ClusterIP, port: 8083 }
+  autoscaling: { enabled: false }
+  resources: *serviceResources
+  config:
+    JAVA_TOOL_OPTIONS: *javaOpts
+    MONGO_URI: mongodb://mongo:27017/product_db
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    KAFKA_BOOTSTRAP: kafka:9092
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    APP_KAFKA_TOPIC_REPLICAS: "1"
+    AUTH_JWKS_URI: http://auth-service:8086/.well-known/jwks.json
+
+inventory-service:
+  enabled: true
+  nameOverride: inventory-service
+  fullnameOverride: inventory-service
+  image: { repository: inventory-service, tag: latest, pullPolicy: IfNotPresent }
+  containerPort: 8084
+  service: { type: ClusterIP, port: 8084 }
+  extraPorts:
+    - { name: grpc, port: 9090 }
+  autoscaling: { enabled: false }
+  resources: *serviceResources
+  volumes:
+    - name: tls
+      secret:
+        secretName: platform-tls
+  volumeMounts:
+    - name: tls
+      mountPath: /tls
+      readOnly: true
+  config:
+    JAVA_TOOL_OPTIONS: *javaOpts
+    TLS_DIR: /tls
+    SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-inventory:5432/inventory_db
+    SPRING_DATASOURCE_USERNAME: inventory_svc
+    SPRING_DATASOURCE_PASSWORD: inventory_svc
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    KAFKA_BOOTSTRAP: kafka:9092
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    APP_KAFKA_TOPIC_REPLICAS: "1"
+
+order-service:
+  enabled: true
+  nameOverride: order-service
+  fullnameOverride: order-service
+  image: { repository: order-service, tag: latest, pullPolicy: IfNotPresent }
+  containerPort: 8085
+  service: { type: ClusterIP, port: 8085 }
+  extraPorts:
+    - { name: grpc, port: 9091 }
+  autoscaling: { enabled: false }
+  resources: *serviceResources
+  volumes:
+    - name: tls
+      secret:
+        secretName: platform-tls
+  volumeMounts:
+    - name: tls
+      mountPath: /tls
+      readOnly: true
+  config:
+    JAVA_TOOL_OPTIONS: *javaOpts
+    TLS_DIR: /tls
+    GRPC_CLIENT_INVENTORY_ADDRESS: static://inventory-service:9090
+    SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-order:5432/order_db
+    SPRING_DATASOURCE_USERNAME: order_svc
+    SPRING_DATASOURCE_PASSWORD: order_svc
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    KAFKA_BOOTSTRAP: kafka:9092
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    APP_KAFKA_TOPIC_REPLICAS: "1"
+    AUTH_JWKS_URI: http://auth-service:8086/.well-known/jwks.json
+
+notification-service:
+  enabled: true
+  nameOverride: notification-service
+  fullnameOverride: notification-service
+  image: { repository: notification-service, tag: latest, pullPolicy: IfNotPresent }
+  containerPort: 8088
+  service: { type: ClusterIP, port: 8088 }
+  autoscaling: { enabled: false }
+  resources: *serviceResources
+  config:
+    JAVA_TOOL_OPTIONS: *javaOpts
+    MONGO_URI: mongodb://mongo:27017/notification_db
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    MAIL_HOST: mailhog
+    MAIL_PORT: "1025"
+    MAIL_FROM: no-reply@orders.local
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    KAFKA_BOOTSTRAP: kafka:9092
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    APP_KAFKA_TOPIC_REPLICAS: "1"
