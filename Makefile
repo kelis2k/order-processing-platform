@@ -15,14 +15,20 @@ PORT_notification-service := 8088
 
 K3D_CLUSTER := orders
 K8S_NAMESPACE := platform
-TLS_SRC := .secrets/dev/tls
+SECRETS_SRC := .secrets/dev
+TLS_SRC := $(SECRETS_SRC)/tls
+SEALED_DIR := k8s/sealed
+SEALED_SECRETS_VERSION := 0.38.4
+SEALED_CONTROLLER := sealed-secrets-controller
+SEALED_NAMESPACE := kube-system
+KUBESEAL_BIN := $(HOME)/.local/bin/kubeseal
 
 export NO_PROXY := localhost,127.0.0.1,0.0.0.0,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
 export no_proxy := $(NO_PROXY)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build-jars docker-images dev-up dev-down dev-logs dev-reset k3d-up k3d-down inject-secrets otel-agent tls-certs
+.PHONY: help build-jars docker-images dev-up dev-down dev-logs dev-reset k3d-up k3d-down kubeseal dev-secrets sealed-controller inject-secrets otel-agent tls-certs
 
 help: ## Список доступных команд
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -46,12 +52,8 @@ k3d-up: ## [9.3] Создать k3d-кластер и развернуть пл�
 	  || k3d cluster create $(K3D_CLUSTER) --servers 1 --agents 0 -p "8087:80@loadbalancer" --wait
 	k3d image import $(foreach s,$(SERVICES),$(s):latest) -c $(K3D_CLUSTER)
 	kubectl create namespace $(K8S_NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
-	kubectl create secret generic platform-tls -n $(K8S_NAMESPACE) \
-	  --from-file=$(TLS_SRC)/ca.crt \
-	  --from-file=$(TLS_SRC)/order-server.crt --from-file=$(TLS_SRC)/order-server.key \
-	  --from-file=$(TLS_SRC)/order-client.crt --from-file=$(TLS_SRC)/order-client.key \
-	  --from-file=$(TLS_SRC)/inventory-server.crt --from-file=$(TLS_SRC)/inventory-server.key \
-	  --dry-run=client -o yaml | kubectl apply -f -
+	$(MAKE) sealed-controller
+	$(MAKE) inject-secrets
 	helm dependency update helm/platform
 	helm upgrade --install platform helm/platform -n $(K8S_NAMESPACE)
 	@echo "ждём готовности подов (первые минуты рестарты — это нормально)"
@@ -64,8 +66,50 @@ k3d-up: ## [9.3] Создать k3d-кластер и развернуть пл�
 k3d-down: ## [9.3] Удалить k3d-кластер целиком
 	k3d cluster delete $(K3D_CLUSTER)
 
-inject-secrets: ## Зашифровать .secrets/dev и применить в k3d
-	@echo "inject-secrets: будет реализован на этапе 9"
+kubeseal: ## [9.4] Скачать утилиту kubeseal в ~/.local/bin (версия зафиксирована)
+	@mkdir -p $(dir $(KUBESEAL_BIN))
+	@test -x $(KUBESEAL_BIN) && $(KUBESEAL_BIN) --version || { \
+	  curl -sSL -o /tmp/kubeseal.tar.gz \
+	    https://github.com/bitnami/sealed-secrets/releases/download/v$(SEALED_SECRETS_VERSION)/kubeseal-$(SEALED_SECRETS_VERSION)-linux-amd64.tar.gz \
+	  && tar -xzf /tmp/kubeseal.tar.gz -C /tmp kubeseal \
+	  && install -m 0755 /tmp/kubeseal $(KUBESEAL_BIN) \
+	  && rm -f /tmp/kubeseal.tar.gz /tmp/kubeseal \
+	  && $(KUBESEAL_BIN) --version; }
+
+dev-secrets: ## [9.4] Сгенерировать dev-секреты в .secrets/dev (JWT-ключи, креды БД)
+	./infra/secrets/gen-dev-secrets.sh
+
+sealed-controller: ## [9.4] Установить контроллер sealed-secrets в кластер
+	kubectl apply -f https://github.com/bitnami/sealed-secrets/releases/download/v$(SEALED_SECRETS_VERSION)/controller.yaml
+	kubectl rollout status deploy/$(SEALED_CONTROLLER) -n $(SEALED_NAMESPACE) --timeout=300s
+
+inject-secrets: kubeseal dev-secrets ## [9.4] Зашифровать .secrets/dev через kubeseal и применить в кластер
+	@mkdir -p $(SEALED_DIR)
+	kubectl create secret generic platform-tls -n $(K8S_NAMESPACE) \
+	  --from-file=$(TLS_SRC)/ca.crt \
+	  --from-file=$(TLS_SRC)/order-server.crt --from-file=$(TLS_SRC)/order-server.key \
+	  --from-file=$(TLS_SRC)/order-client.crt --from-file=$(TLS_SRC)/order-client.key \
+	  --from-file=$(TLS_SRC)/inventory-server.crt --from-file=$(TLS_SRC)/inventory-server.key \
+	  --dry-run=client -o yaml \
+	  | $(KUBESEAL_BIN) --format yaml \
+	      --controller-name $(SEALED_CONTROLLER) --controller-namespace $(SEALED_NAMESPACE) \
+	  > $(SEALED_DIR)/platform-tls.yaml
+	kubectl create secret generic auth-jwt -n $(K8S_NAMESPACE) \
+	  --from-file=$(SECRETS_SRC)/jwt/jwt-private.pem --from-file=$(SECRETS_SRC)/jwt/jwt-public.pem \
+	  --dry-run=client -o yaml \
+	  | $(KUBESEAL_BIN) --format yaml \
+	      --controller-name $(SEALED_CONTROLLER) --controller-namespace $(SEALED_NAMESPACE) \
+	  > $(SEALED_DIR)/auth-jwt.yaml
+	@for s in auth-service user-service order-service inventory-service; do \
+	  kubectl create secret generic $$s-db -n $(K8S_NAMESPACE) \
+	    --from-env-file=$(SECRETS_SRC)/db/$$s.env --dry-run=client -o yaml \
+	    | $(KUBESEAL_BIN) --format yaml \
+	        --controller-name $(SEALED_CONTROLLER) --controller-namespace $(SEALED_NAMESPACE) \
+	    > $(SEALED_DIR)/$$s-db.yaml || exit 1; \
+	done
+	kubectl apply -f $(SEALED_DIR)
+	@kubectl get sealedsecrets,secrets -n $(K8S_NAMESPACE) | grep -E 'platform-tls|auth-jwt|-db'
+
 OTEL_AGENT_VERSION := 2.29.0
 otel-agent: ## Скачать OpenTelemetry Java agent (версия зафиксирована ради воспроизводимости)
 	mkdir -p infra/otel

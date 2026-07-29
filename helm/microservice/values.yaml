@@ -17,6 +17,8 @@ extraPorts: []
 
 config: {}
 
+envFromSecret: ""
+
 volumes: []
 
 volumeMounts: []

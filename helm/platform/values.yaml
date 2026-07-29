@@ -59,16 +59,25 @@ auth-service:
   enabled: true
   nameOverride: auth-service
   fullnameOverride: auth-service
+  envFromSecret: auth-service-db
   image: { repository: auth-service, tag: latest, pullPolicy: IfNotPresent }
   containerPort: 8086
   service: { type: ClusterIP, port: 8086 }
   autoscaling: { enabled: false }
   resources: *serviceResources
+  volumes:
+    - name: jwt-keys
+      secret:
+        secretName: auth-jwt
+  volumeMounts:
+    - name: jwt-keys
+      mountPath: /keys
+      readOnly: true
   config:
     JAVA_TOOL_OPTIONS: *javaOpts
+    APP_JWT_PRIVATE_KEY: file:/keys/jwt-private.pem
+    APP_JWT_PUBLIC_KEY: file:/keys/jwt-public.pem
     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-auth:5432/auth_db
-    SPRING_DATASOURCE_USERNAME: auth
-    SPRING_DATASOURCE_PASSWORD: auth
     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
     KAFKA_BOOTSTRAP: kafka:9092
@@ -81,6 +90,7 @@ user-service:
   enabled: true
   nameOverride: user-service
   fullnameOverride: user-service
+  envFromSecret: user-service-db
   image: { repository: user-service, tag: latest, pullPolicy: IfNotPresent }
   containerPort: 8082
   service: { type: ClusterIP, port: 8082 }
@@ -89,8 +99,6 @@ user-service:
   config:
     JAVA_TOOL_OPTIONS: *javaOpts
     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-user:5432/user_db
-    SPRING_DATASOURCE_USERNAME: user_svc
-    SPRING_DATASOURCE_PASSWORD: user_svc
     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
     KAFKA_BOOTSTRAP: kafka:9092
@@ -125,6 +133,7 @@ inventory-service:
   enabled: true
   nameOverride: inventory-service
   fullnameOverride: inventory-service
+  envFromSecret: inventory-service-db
   image: { repository: inventory-service, tag: latest, pullPolicy: IfNotPresent }
   containerPort: 8084
   service: { type: ClusterIP, port: 8084 }
@@ -144,8 +153,6 @@ inventory-service:
     JAVA_TOOL_OPTIONS: *javaOpts
     TLS_DIR: /tls
     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-inventory:5432/inventory_db
-    SPRING_DATASOURCE_USERNAME: inventory_svc
-    SPRING_DATASOURCE_PASSWORD: inventory_svc
     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
     KAFKA_BOOTSTRAP: kafka:9092
@@ -157,6 +164,7 @@ order-service:
   enabled: true
   nameOverride: order-service
   fullnameOverride: order-service
+  envFromSecret: order-service-db
   image: { repository: order-service, tag: latest, pullPolicy: IfNotPresent }
   containerPort: 8085
   service: { type: ClusterIP, port: 8085 }
@@ -177,8 +185,6 @@ order-service:
     TLS_DIR: /tls
     GRPC_CLIENT_INVENTORY_ADDRESS: static://inventory-service:9090
     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-order:5432/order_db
-    SPRING_DATASOURCE_USERNAME: order_svc
-    SPRING_DATASOURCE_PASSWORD: order_svc
     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
     KAFKA_BOOTSTRAP: kafka:9092

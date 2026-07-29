@@ -35,6 +35,10 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "microservice.fullname" . }}-config
+            {{- with .Values.envFromSecret }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
           livenessProbe:
             httpGet:
               path: {{ .Values.probes.path }}
