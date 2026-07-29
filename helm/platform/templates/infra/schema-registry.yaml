@@ -21,6 +21,7 @@ spec:
     metadata:
       labels: { app.kubernetes.io/name: schema-registry }
     spec:
+      enableServiceLinks: false
       containers:
         - name: schema-registry
           image: {{ .Values.infra.schemaRegistry.image }}

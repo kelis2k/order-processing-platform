@@ -22,6 +22,7 @@ spec:
     metadata:
       labels: { app.kubernetes.io/name: mailhog }
     spec:
+      enableServiceLinks: false
       containers:
         - name: mailhog
           image: {{ .Values.infra.mailhog.image }}

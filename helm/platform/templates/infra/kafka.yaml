@@ -6,6 +6,7 @@ metadata:
   labels: { app.kubernetes.io/name: kafka }
 spec:
   clusterIP: None
+  publishNotReadyAddresses: true
   ports:
     - { name: kafka,      port: 9092, targetPort: kafka }
     - { name: controller, port: 29093, targetPort: controller }
@@ -24,6 +25,7 @@ spec:
     metadata:
       labels: { app.kubernetes.io/name: kafka }
     spec:
+      enableServiceLinks: false
       securityContext:
         fsGroup: 1000
       containers:

@@ -201,6 +201,8 @@ notification-service:
     MONGO_URI: mongodb://mongo:27017/notification_db
     REDIS_HOST: redis
     REDIS_PORT: "6379"
+    SPRING_DATA_REDIS_HOST: redis
+    SPRING_DATA_REDIS_PORT: "6379"
     MAIL_HOST: mailhog
     MAIL_PORT: "1025"
     MAIL_FROM: no-reply@orders.local

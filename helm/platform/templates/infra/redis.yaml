@@ -21,6 +21,7 @@ spec:
     metadata:
       labels: { app.kubernetes.io/name: redis }
     spec:
+      enableServiceLinks: false
       containers:
         - name: redis
           image: {{ .Values.infra.redis.image }}

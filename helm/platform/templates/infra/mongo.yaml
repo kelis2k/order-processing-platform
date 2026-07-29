@@ -22,6 +22,7 @@ spec:
     metadata:
       labels: { app.kubernetes.io/name: mongo }
     spec:
+      enableServiceLinks: false
       containers:
         - name: mongo
           image: {{ .Values.infra.mongo.image }}
@@ -30,8 +31,9 @@ spec:
           readinessProbe:
             exec:
               command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
-            initialDelaySeconds: 10
-            periodSeconds: 10
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 10
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits:   { cpu: 500m, memory: 512Mi }

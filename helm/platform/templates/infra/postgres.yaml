@@ -26,6 +26,7 @@ spec:
     metadata:
       labels: { app.kubernetes.io/name: postgres-{{ $name }} }
     spec:
+      enableServiceLinks: false
       containers:
         - name: postgres
           image: {{ $.Values.infra.postgres.image }}

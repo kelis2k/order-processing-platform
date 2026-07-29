@@ -13,12 +13,19 @@ PORT_order-service     := 8085
 PORT_notification-service := 8088
 
 
+K3D_CLUSTER := orders
+K8S_NAMESPACE := platform
+TLS_SRC := .secrets/dev/tls
+
+export NO_PROXY := localhost,127.0.0.1,0.0.0.0,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
+export no_proxy := $(NO_PROXY)
+
 .DEFAULT_GOAL := help
 
-.PHONY: help build-jars docker-images dev-up dev-down dev-logs dev-reset k3d-up inject-secrets otel-agent tls-certs
+.PHONY: help build-jars docker-images dev-up dev-down dev-logs dev-reset k3d-up k3d-down inject-secrets otel-agent tls-certs
 
 help: ## Список доступных команд
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
 dev-up: build-jars ## Поднять весь стек локально (detached). Пересобирает JAR и Docker-образы
@@ -33,8 +40,29 @@ dev-logs: ## Следить за логами всех контейнеров
 dev-reset: ## Остановить стек и УДАЛИТЬ все volumes (полный сброс данных)
 	$(COMPOSE) down -v
 
-k3d-up: ##  Создать k3d-кластер и задеплоить Helm umbrella chart
-	@echo "k3d-up: будет реализован на этапе 9"
+k3d-up: ## [9.3] Создать k3d-кластер и развернуть платформу
+	@test -f $(TLS_SRC)/ca.crt || { echo "нет сертификатов — сначала make tls-certs"; exit 1; }
+	@k3d cluster list $(K3D_CLUSTER) >/dev/null 2>&1 \
+	  || k3d cluster create $(K3D_CLUSTER) --servers 1 --agents 0 -p "8087:80@loadbalancer" --wait
+	k3d image import $(foreach s,$(SERVICES),$(s):latest) -c $(K3D_CLUSTER)
+	kubectl create namespace $(K8S_NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create secret generic platform-tls -n $(K8S_NAMESPACE) \
+	  --from-file=$(TLS_SRC)/ca.crt \
+	  --from-file=$(TLS_SRC)/order-server.crt --from-file=$(TLS_SRC)/order-server.key \
+	  --from-file=$(TLS_SRC)/order-client.crt --from-file=$(TLS_SRC)/order-client.key \
+	  --from-file=$(TLS_SRC)/inventory-server.crt --from-file=$(TLS_SRC)/inventory-server.key \
+	  --dry-run=client -o yaml | kubectl apply -f -
+	helm dependency update helm/platform
+	helm upgrade --install platform helm/platform -n $(K8S_NAMESPACE)
+	@echo "ждём готовности подов (первые минуты рестарты — это нормально)"
+	-@for r in $$(kubectl get deploy,statefulset -n $(K8S_NAMESPACE) -o name); do \
+	  kubectl rollout status $$r -n $(K8S_NAMESPACE) --timeout=600s || true; \
+	done
+	@kubectl get pods -n $(K8S_NAMESPACE)
+	@echo "gateway: kubectl port-forward -n $(K8S_NAMESPACE) svc/api-gateway 8087:8087"
+
+k3d-down: ## [9.3] Удалить k3d-кластер целиком
+	k3d cluster delete $(K3D_CLUSTER)
 
 inject-secrets: ## Зашифровать .secrets/dev и применить в k3d
 	@echo "inject-secrets: будет реализован на этапе 9"
