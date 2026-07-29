@@ -56,9 +56,10 @@ jobs:
       - name: Build product-service Docker image
         run: |
           docker build \
-            -f services/product-service/Dockerfile \
-            -t product-service:${{ github.sha }} \
-            .
+            -f infra/docker/Dockerfile.service \
+            --build-arg SERVICE=product-service \
+            --build-arg PORT=8083 \
+            -t product-service:${{ github.sha }} .
 
       - name: Trivy image scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
