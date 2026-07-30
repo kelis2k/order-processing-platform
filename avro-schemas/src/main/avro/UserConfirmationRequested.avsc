@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "UserConfirmationRequested",
+  "namespace": "ru.potekhincode.avro",
+  "fields": [
+    {"name": "userId",    "type": "string"},
+    {"name": "email",     "type": "string"},
+    {"name": "username",  "type": "string"},
+    {"name": "token",     "type": "string"},
+    {"name": "expiresAt", "type": {"type": "long", "logicalType": "timestamp-millis"}},
+    {"name": "timestamp", "type": {"type": "long", "logicalType": "timestamp-millis"}}
+  ]
+}

@@ -86,4 +86,12 @@ public class KafkaConfig {
                 .replicas(topicReplicas)
                 .build();
     }
+
+    @Bean
+    public NewTopic userConfirmationRequestedTopic() {
+        return TopicBuilder.name("user.confirmation-requested")
+                .partitions(3)
+                .replicas(topicReplicas)
+                .build();
+    }
 }

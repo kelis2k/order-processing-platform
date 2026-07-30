@@ -89,9 +89,8 @@ public class AuthServiceImpl implements AuthService {
         token.setUsed(false);
         confirmationTokenRepository.save(token);
 
-        // заглушка письма
-        log.info("Confirmation link for {}: POST /auth/confirm  body: {{\"token\":\"{}\"}}",
-                user.getEmail(), rawToken);
+        outboxRepository.save(outboxEventFactory.userConfirmationRequested(
+                user, rawToken, token.getExpiresAt().toInstant().toEpochMilli()));
     }
 
     @Override

@@ -58,6 +58,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/TokenResponse"
   /auth/confirm:
+    get:
+      tags:
+      - auth-controller
+      operationId: confirmByLink
+      parameters:
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: string
     post:
       tags:
       - auth-controller

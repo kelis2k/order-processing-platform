@@ -18,6 +18,15 @@ public class EmailTemplateSeeder implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        seed(NotificationType.USER_CONFIRMATION,
+                "Подтвердите регистрацию",
+                """
+                        <p>Здравствуйте, [[${username}]]!</p>
+                        <p>Для завершения регистрации подтвердите адрес:</p>
+                        <p><a th:href="${confirmUrl}">[[${confirmUrl}]]</a></p>
+                        <p>Ссылка действует до [[${expiresAt}]].</p>
+                        """);
+
         seed(NotificationType.ORDER_ACCEPTED,
                 "Заказ [[${orderId}]] принят",
                 """

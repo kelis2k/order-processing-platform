@@ -25,6 +25,20 @@ public class OutboxEventFactory {
         return build("UserCreated", "user.created", user.getId().toString(), payload);
     }
 
+    public OutboxEvent userConfirmationRequested(User user, String rawToken, long expiresAtMillis) {
+        var payload = new UserConfirmationRequestedPayload(
+                user.getId().toString(),
+                user.getEmail(),
+                user.getUsername(),
+                rawToken,
+                expiresAtMillis,
+                System.currentTimeMillis()
+        );
+
+        return build("UserConfirmationRequested", "user.confirmation-requested",
+                user.getId().toString(), payload);
+    }
+
     private OutboxEvent build(String eventType,
                               String topic,
                               String aggregateId,

@@ -6,6 +6,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.mail.MailSendException;
 import ru.potekhincode.notification.exception.RecipientNotFoundException;
@@ -20,11 +21,13 @@ import ru.potekhincode.notification.model.Recipient;
 import ru.potekhincode.notification.repository.NotificationRepository;
 
 import java.util.Map;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -59,6 +62,39 @@ class NotificationServiceTest {
         when(recipientService.require(USER_ID)).thenReturn(new Recipient(USER_ID, EMAIL, "notify"));
         when(rateLimiter.tryAcquire(USER_ID)).thenReturn(true);
         when(renderer.render(any(NotificationType.class), anyMap())).thenReturn(RENDERED);
+    }
+
+    @Test
+    void confirmationRequestedShouldSendLetterWithLinkFromEventData() {
+        when(rateLimiter.tryAcquire(USER_ID)).thenReturn(true);
+        when(renderer.render(any(NotificationType.class), anyMap())).thenReturn(RENDERED);
+        ReflectionTestUtils.setField(notificationService, "publicUrl", "http://gw:8087");
+
+        notificationService.onConfirmationRequested(USER_ID, EMAIL, "notify", "tok-123",
+                Instant.parse("2030-01-01T00:00:00Z"));
+
+        Notification inserted = captureInserted();
+        assertThat(inserted.getType()).isEqualTo(NotificationType.USER_CONFIRMATION);
+        assertThat(inserted.getAggregateId()).isEqualTo(USER_ID);
+        assertThat(inserted.getRecipientEmail()).isEqualTo(EMAIL);
+
+        ArgumentCaptor<Map<String, Object>> vars = ArgumentCaptor.forClass(Map.class);
+        verify(renderer).render(eq(NotificationType.USER_CONFIRMATION), vars.capture());
+        assertThat(vars.getValue()).containsEntry("confirmUrl", "http://gw:8087/auth/confirm?token=tok-123");
+
+        verify(emailSender).send(eq(EMAIL), eq("subj"), eq("<p>body</p>"));
+        assertThat(captureSaved().getState()).isEqualTo(DeliveryState.SENT);
+    }
+
+    @Test
+    void confirmationRequestedShouldNotDependOnRecipientProjection() {
+        when(rateLimiter.tryAcquire(USER_ID)).thenReturn(true);
+        when(renderer.render(any(NotificationType.class), anyMap())).thenReturn(RENDERED);
+
+        notificationService.onConfirmationRequested(USER_ID, EMAIL, "notify", "tok-123",
+                Instant.parse("2030-01-01T00:00:00Z"));
+
+        verify(recipientService, never()).require(anyString());
     }
 
     @Test

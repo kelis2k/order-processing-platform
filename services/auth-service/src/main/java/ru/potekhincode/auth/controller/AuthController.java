@@ -36,4 +36,10 @@ public class AuthController {
     public void confirm(@Valid @RequestBody ConfirmRequest request) {
         authService.confirm(request);
     }
+
+    @GetMapping("/confirm")
+    public String confirmByLink(@RequestParam String token) {
+        authService.confirm(new ConfirmRequest(token));
+        return "Email подтверждён. Теперь можно войти.";
+    }
 }
