@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: inventory-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH_JWKS_URI:http://localhost:8086/.well-known/jwks.json}
   datasource:
     url: jdbc:postgresql://localhost:5435/inventory_db
     username: inventory_svc
@@ -52,3 +57,11 @@ management:
   endpoint:
     health:
       show-details: always
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    try-it-out-enabled: true
+    operations-sorter: method

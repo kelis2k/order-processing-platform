@@ -122,7 +122,7 @@ otel-agent: ## Скачать OpenTelemetry Java agent (версия зафик�
 tls-certs: ## [8.3] Сгенерировать dev-PKI для gRPC TLS (CA + сертификаты сервисов)
 	./infra/tls/gen-certs.sh
 
-REST_SERVICES := auth-service user-service product-service order-service
+REST_SERVICES := auth-service user-service product-service inventory-service order-service
 openapi: ## [10.0] Снять OpenAPI-спеки с поднятого стека в openapi/ (нужен make dev-up)
 	@mkdir -p openapi
 	@for s in $(REST_SERVICES); do \

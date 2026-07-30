@@ -1,0 +1,81 @@
+openapi: 3.1.0
+info:
+  title: Inventory Service API
+  description: Остатки и резервы на складе
+  version: "1.0"
+servers:
+- url: http://localhost:8084
+  description: Generated server url
+security:
+- bearerAuth: []
+paths:
+  /inventory/{productId}:
+    get:
+      tags:
+      - inventory-controller
+      summary: Остаток и резерв по товару
+      operationId: getStock
+      parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StockResponse"
+    put:
+      tags:
+      - inventory-controller
+      summary: Задать остаток товара на складе (идемпотентно)
+      operationId: setStock
+      parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetStockRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StockResponse"
+components:
+  schemas:
+    SetStockRequest:
+      type: object
+      properties:
+        available:
+          type: integer
+          format: int32
+          minimum: 0
+      required:
+      - available
+    StockResponse:
+      type: object
+      properties:
+        productId:
+          type: string
+        available:
+          type: integer
+          format: int32
+        reserved:
+          type: integer
+          format: int32
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

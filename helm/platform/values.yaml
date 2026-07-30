@@ -165,6 +165,7 @@ inventory-service:
   config:
     JAVA_TOOL_OPTIONS: *javaOpts
     TLS_DIR: /tls
+    AUTH_JWKS_URI: http://auth-service:8086/.well-known/jwks.json
     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-inventory:5432/inventory_db
     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
@@ -226,6 +227,7 @@ notification-service:
     MAIL_HOST: mailhog
     MAIL_PORT: "1025"
     MAIL_FROM: no-reply@orders.local
+    APP_PUBLIC_URL: http://localhost:8087
     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
     KAFKA_BOOTSTRAP: kafka:9092

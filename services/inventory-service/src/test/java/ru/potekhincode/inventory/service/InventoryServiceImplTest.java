@@ -7,6 +7,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import ru.potekhincode.inventory.exception.InsufficientStockException;
+import ru.potekhincode.inventory.dto.StockResponse;
+import ru.potekhincode.inventory.exception.StockNotFoundException;
 import ru.potekhincode.inventory.model.Inventory;
 import ru.potekhincode.inventory.repository.InventoryRepository;
 import ru.potekhincode.inventory.service.impl.InventoryServiceImpl;
@@ -17,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
@@ -38,6 +41,52 @@ class InventoryServiceImplTest {
 
     @InjectMocks
     private InventoryServiceImpl inventoryService;
+
+    @Test
+    void setStockCreatesPositionWhenAbsent() {
+        when(inventoryRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.empty());
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        StockResponse response = inventoryService.setStock(PRODUCT_ID, 25);
+
+        assertThat(response.productId()).isEqualTo(PRODUCT_ID);
+        assertThat(response.available()).isEqualTo(25);
+        assertThat(response.reserved()).isZero();
+    }
+
+    @Test
+    void setStockUpdatesExistingPositionKeepingReserved() {
+        Inventory existing = inventory(5);
+        existing.setReserved(2);
+        when(inventoryRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.of(existing));
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        StockResponse response = inventoryService.setStock(PRODUCT_ID, 40);
+
+        assertThat(response.available()).isEqualTo(40);
+        assertThat(response.reserved()).isEqualTo(2);
+    }
+
+    @Test
+    void setStockIsIdempotent() {
+        Inventory existing = inventory(7);
+        when(inventoryRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.of(existing));
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        StockResponse first = inventoryService.setStock(PRODUCT_ID, 12);
+        StockResponse second = inventoryService.setStock(PRODUCT_ID, 12);
+
+        assertThat(first.available()).isEqualTo(second.available()).isEqualTo(12);
+    }
+
+    @Test
+    void getStockThrowsWhenPositionAbsent() {
+        when(inventoryRepository.findByProductId(PRODUCT_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> inventoryService.getStock(PRODUCT_ID))
+                .isInstanceOf(StockNotFoundException.class)
+                .hasMessageContaining(PRODUCT_ID);
+    }
 
     private Inventory inventory(int available) {
         return Inventory.builder()

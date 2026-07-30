@@ -424,6 +424,7 @@ services:
       SPRING_DATASOURCE_USERNAME: inventory_svc
       SPRING_DATASOURCE_PASSWORD: inventory_svc
       TLS_DIR: /tls
+      AUTH_JWKS_URI: http://auth-service:8086/.well-known/jwks.json
     volumes:
       - ./infra/otel/opentelemetry-javaagent.jar:/otel/agent.jar:ro
       - ./.secrets/dev/tls:/tls:ro
@@ -500,6 +501,7 @@ services:
       MAIL_HOST: mailhog
       MAIL_PORT: 1025
       MAIL_FROM: no-reply@orders.local
+      APP_PUBLIC_URL: http://localhost:8087
     volumes:
       - ./infra/otel/opentelemetry-javaagent.jar:/otel/agent.jar:ro
     mem_limit: 768m
