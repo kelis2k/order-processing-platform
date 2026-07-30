@@ -238,11 +238,11 @@ components:
       properties:
         unpaged:
           type: boolean
-        paged:
-          type: boolean
         pageNumber:
           type: integer
           format: int32
+        paged:
+          type: boolean
         pageSize:
           type: integer
           format: int32

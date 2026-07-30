@@ -116,10 +116,21 @@ product-service:
   image: { repository: product-service, tag: latest, pullPolicy: IfNotPresent }
   containerPort: 8083
   service: { type: ClusterIP, port: 8083 }
+  extraPorts:
+    - { name: grpc, port: 9089 }
   autoscaling: { enabled: false }
   resources: *serviceResources
+  volumes:
+    - name: tls
+      secret:
+        secretName: platform-tls
+  volumeMounts:
+    - name: tls
+      mountPath: /tls
+      readOnly: true
   config:
     JAVA_TOOL_OPTIONS: *javaOpts
+    TLS_DIR: /tls
     MONGO_URI: mongodb://mongo:27017/product_db
     REDIS_HOST: redis
     REDIS_PORT: "6379"
@@ -186,6 +197,7 @@ order-service:
     JAVA_TOOL_OPTIONS: *javaOpts
     TLS_DIR: /tls
     GRPC_CLIENT_INVENTORY_ADDRESS: static://inventory-service:9090
+    GRPC_CLIENT_PRODUCT_ADDRESS: static://product-service:9089
     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-order:5432/order_db
     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081

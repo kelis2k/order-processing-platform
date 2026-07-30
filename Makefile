@@ -91,6 +91,7 @@ inject-secrets: kubeseal dev-secrets ## [9.4] Зашифровать .secrets/de
 	  --from-file=$(TLS_SRC)/order-server.crt --from-file=$(TLS_SRC)/order-server.key \
 	  --from-file=$(TLS_SRC)/order-client.crt --from-file=$(TLS_SRC)/order-client.key \
 	  --from-file=$(TLS_SRC)/inventory-server.crt --from-file=$(TLS_SRC)/inventory-server.key \
+	  --from-file=$(TLS_SRC)/product-server.crt --from-file=$(TLS_SRC)/product-server.key \
 	  --dry-run=client -o yaml \
 	  | $(KUBESEAL_BIN) --format yaml \
 	      --controller-name $(SEALED_CONTROLLER) --controller-namespace $(SEALED_NAMESPACE) \

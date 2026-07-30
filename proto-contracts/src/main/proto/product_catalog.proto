@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package ru.potekhincode.product;
+
+option java_package = "ru.potekhincode.product.grpc";
+option java_multiple_files = true;
+option java_outer_classname = "ProductCatalogProto";
+
+service ProductCatalogService {
+  rpc GetPrices (GetPricesRequest) returns (GetPricesResponse);
+}
+
+message GetPricesRequest {
+  repeated string product_ids = 1;
+}
+
+message GetPricesResponse {
+  repeated ProductPrice prices = 1;
+}
+
+message ProductPrice {
+  string product_id = 1;
+  string price      = 2;
+  bool   found      = 3;
+}

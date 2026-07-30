@@ -4,10 +4,14 @@
 #   ./infra/tls/gen-certs.sh            # сгенерировать, если ещё нет
 #   ./infra/tls/gen-certs.sh --force    # перевыпустить всё с нуля
 #
-# Выпускается self-signed CA и три листовых сертификата:
+# Выпускается self-signed CA и четыре листовых сертификата:
 #   inventory-server — TLS-сервер inventory-service (:9090)
 #   order-server     — TLS-сервер order-service, внешний gRPC-entrypoint (:9091)
-#   order-client     — клиентский сертификат order-service для mTLS в inventory
+#   product-server   — TLS-сервер product-service, каталог цен (:9089)
+#   order-client     — клиентский сертификат order-service для mTLS в inventory и product
+#
+# Скрипт инкрементальный: существующие CA и сертификаты не трогает, выпускает только
+# недостающие. --force перевыпускает всё, включая CA (рвёт доверие у уже выданных).
 #
 # Ключи — PKCS#8 (openssl genpkey): netty/gRPC читает только этот формат,
 # PKCS#1 из `openssl genrsa` он не примет.
@@ -20,24 +24,34 @@ OUT="${TLS_DIR:-.secrets/dev/tls}"
 DAYS_CA=3650
 DAYS_LEAF=825
 
-if [ -f "$OUT/ca.crt" ] && [ "${1:-}" != "--force" ]; then
-  echo "✔ PKI уже есть в $OUT (перевыпуск: $0 --force)"
-  exit 0
-fi
+FORCE="${1:-}"
 
 mkdir -p "$OUT"
-rm -f "$OUT"/*.crt "$OUT"/*.key "$OUT"/*.srl
 
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out "$OUT/ca.key"
-openssl req -x509 -new -key "$OUT/ca.key" -sha256 -days "$DAYS_CA" \
-  -subj "/CN=Order Platform Dev CA/O=order-platform" \
-  -addext "basicConstraints=critical,CA:TRUE,pathlen:0" \
-  -addext "keyUsage=critical,keyCertSign,cRLSign" \
-  -out "$OUT/ca.crt"
+if [ "$FORCE" = "--force" ]; then
+  rm -f "$OUT"/*.crt "$OUT"/*.key "$OUT"/*.srl "$OUT"/*.csr "$OUT"/*.ext
+fi
+
+if [ ! -f "$OUT/ca.crt" ]; then
+  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out "$OUT/ca.key"
+  openssl req -x509 -new -key "$OUT/ca.key" -sha256 -days "$DAYS_CA" \
+    -subj "/CN=Order Platform Dev CA/O=order-platform" \
+    -addext "basicConstraints=critical,CA:TRUE,pathlen:0" \
+    -addext "keyUsage=critical,keyCertSign,cRLSign" \
+    -out "$OUT/ca.crt"
+  echo "  ✔ CA выпущен"
+else
+  echo "  · CA на месте, переиспользуем"
+fi
 
 
 gen_leaf() {
   local name="$1" cn="$2" san="$3" eku="$4"
+
+  if [ -f "$OUT/$name.crt" ]; then
+    echo "  · $name на месте"
+    return 0
+  fi
 
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$OUT/$name.key"
   openssl req -new -key "$OUT/$name.key" -subj "/CN=$cn/O=order-platform" -out "$OUT/$name.csr"
@@ -65,6 +79,10 @@ gen_leaf inventory-server inventory-service \
 
 gen_leaf order-server order-service \
   "DNS:localhost,DNS:order-service,DNS:order-service.default.svc.cluster.local,IP:127.0.0.1" \
+  "serverAuth"
+
+gen_leaf product-server product-service \
+  "DNS:localhost,DNS:product-service,DNS:product-service.default.svc.cluster.local,IP:127.0.0.1" \
   "serverAuth"
 
 gen_leaf order-client order-service \

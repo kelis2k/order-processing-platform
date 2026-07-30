@@ -382,14 +382,17 @@ services:
       schema-registry: { condition: service_healthy }
     ports:
       - "8083:8083"
+      - "9089:9089"
     environment:
       <<: *service-common-env
       OTEL_SERVICE_NAME: product-service
       MONGO_URI: mongodb://mongo:27017/product_db
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      TLS_DIR: /tls
     volumes:
       - ./infra/otel/opentelemetry-javaagent.jar:/otel/agent.jar:ro
+      - ./.secrets/dev/tls:/tls:ro
     mem_limit: 768m
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8083/actuator/health"]
@@ -456,6 +459,7 @@ services:
       SPRING_DATASOURCE_USERNAME: order_svc
       SPRING_DATASOURCE_PASSWORD: order_svc
       GRPC_CLIENT_INVENTORY_ADDRESS: static://inventory-service:9090
+      GRPC_CLIENT_PRODUCT_ADDRESS: static://product-service:9089
       TLS_DIR: /tls
     volumes:
       - ./infra/otel/opentelemetry-javaagent.jar:/otel/agent.jar:ro

@@ -62,6 +62,7 @@ class ProductControllerIT {
         registry.add("spring.data.mongodb.uri", () -> mongo.getConnectionString() + "/product_db");
         registry.add("spring.kafka.bootstrap-servers", () -> "localhost:9092");
         registry.add("spring.data.redis.host", () -> "localhost");
+        registry.add("grpc.server.port", () -> "-1");
     }
 
     @Autowired

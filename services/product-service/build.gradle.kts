@@ -39,4 +39,5 @@ tasks.withType<Test> {
     environment("HTTPS_PROXY", "")
     environment("http_proxy", "")
     environment("https_proxy", "")
+    systemProperty("tls.dir", rootProject.file(".secrets/dev/tls").absolutePath)
 }

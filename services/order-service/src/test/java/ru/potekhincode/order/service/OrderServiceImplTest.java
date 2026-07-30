@@ -15,6 +15,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import ru.potekhincode.order.client.InventoryClient;
+import ru.potekhincode.order.client.ProductCatalogClient;
+import ru.potekhincode.order.exception.ProductNotFoundException;
 import ru.potekhincode.order.client.UnavailableItem;
 import ru.potekhincode.order.dto.request.CreateOrderRequest;
 import ru.potekhincode.order.dto.request.OrderItemRequest;
@@ -36,13 +38,16 @@ import ru.potekhincode.order.repository.OutboxRepository;
 import ru.potekhincode.order.repository.SagaStateRepository;
 import ru.potekhincode.order.service.impl.OrderServiceImpl;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,6 +70,9 @@ class OrderServiceImplTest {
 
     @Mock
     private InventoryClient inventoryClient;
+
+    @Mock
+    private ProductCatalogClient productCatalogClient;
 
     @Mock
     private OutboxRepository outboxRepository;
@@ -90,6 +98,91 @@ class OrderServiceImplTest {
     }
 
     @Test
+    void shouldFillUnitPricesAndTotalAmount() {
+        CreateOrderRequest request = new CreateOrderRequest(List.of(
+                new OrderItemRequest(PRODUCT_ID, 3),
+                new OrderItemRequest("p-200", 2)));
+
+        when(inventoryClient.checkAvailability(request.items())).thenReturn(List.of());
+        when(productCatalogClient.getPrices(List.of(PRODUCT_ID, "p-200")))
+                .thenReturn(Map.of(PRODUCT_ID, new BigDecimal("10.50"), "p-200", new BigDecimal("4.00")));
+        when(orderMapper.toEntity(any(OrderItemRequest.class))).thenAnswer(inv -> {
+            OrderItemRequest req = inv.getArgument(0);
+            OrderItem item = new OrderItem();
+            item.setProductId(req.productId());
+            item.setQuantity(req.quantity());
+            return item;
+        });
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
+            Order toSave = inv.getArgument(0);
+            toSave.setId(ORDER_ID);
+            return toSave;
+        });
+        when(orderMapper.toResponse(any(Order.class)))
+                .thenReturn(new OrderResponse(ORDER_ID, USER_ID, OrderStatus.NEW, null, List.of(), null));
+
+        orderService.create(request, USER_ID);
+
+        ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(captor.capture());
+        Order saved = captor.getValue();
+
+        assertThat(saved.getItems())
+                .extracting(OrderItem::getProductId, OrderItem::getUnitPrice)
+                .containsExactly(
+                        org.assertj.core.api.Assertions.tuple(PRODUCT_ID, new BigDecimal("10.50")),
+                        org.assertj.core.api.Assertions.tuple("p-200", new BigDecimal("4.00")));
+        assertThat(saved.getTotalAmount()).isEqualByComparingTo(new BigDecimal("39.50"));
+    }
+
+    @Test
+    void shouldRejectOrderWhenProductMissingInCatalog() {
+        CreateOrderRequest request =
+                new CreateOrderRequest(List.of(new OrderItemRequest(PRODUCT_ID, QUANTITY)));
+
+        when(productCatalogClient.getPrices(List.of(PRODUCT_ID))).thenReturn(Map.of());
+
+        assertThatThrownBy(() -> orderService.create(request, USER_ID))
+                .isInstanceOf(ProductNotFoundException.class)
+                .hasMessageContaining(PRODUCT_ID);
+
+        verify(orderRepository, never()).save(any(Order.class));
+        verify(inventoryClient, never()).checkAvailability(anyList());
+    }
+
+    @Test
+    void shouldAskCatalogOnceForRepeatedProduct() {
+        CreateOrderRequest request = new CreateOrderRequest(List.of(
+                new OrderItemRequest(PRODUCT_ID, 1),
+                new OrderItemRequest(PRODUCT_ID, 2)));
+
+        when(inventoryClient.checkAvailability(request.items())).thenReturn(List.of());
+        when(productCatalogClient.getPrices(List.of(PRODUCT_ID)))
+                .thenReturn(Map.of(PRODUCT_ID, new BigDecimal("2.00")));
+        when(orderMapper.toEntity(any(OrderItemRequest.class))).thenAnswer(inv -> {
+            OrderItemRequest req = inv.getArgument(0);
+            OrderItem item = new OrderItem();
+            item.setProductId(req.productId());
+            item.setQuantity(req.quantity());
+            return item;
+        });
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
+            Order toSave = inv.getArgument(0);
+            toSave.setId(ORDER_ID);
+            return toSave;
+        });
+        when(orderMapper.toResponse(any(Order.class)))
+                .thenReturn(new OrderResponse(ORDER_ID, USER_ID, OrderStatus.NEW, null, List.of(), null));
+
+        orderService.create(request, USER_ID);
+
+        verify(productCatalogClient).getPrices(List.of(PRODUCT_ID));
+        ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(captor.capture());
+        assertThat(captor.getValue().getTotalAmount()).isEqualByComparingTo(new BigDecimal("6.00"));
+    }
+
+    @Test
     void shouldCreateOrderInNewStatusWithLinkedItems() {
         CreateOrderRequest request =
                 new CreateOrderRequest(List.of(new OrderItemRequest(PRODUCT_ID, QUANTITY)));
@@ -98,6 +191,8 @@ class OrderServiceImplTest {
         mappedItem.setQuantity(QUANTITY);
 
         when(inventoryClient.checkAvailability(request.items())).thenReturn(List.of()); // дефицита нет
+        when(productCatalogClient.getPrices(List.of(PRODUCT_ID)))
+                .thenReturn(Map.of(PRODUCT_ID, new BigDecimal("10.50")));
         when(orderMapper.toEntity(any(OrderItemRequest.class))).thenReturn(mappedItem);
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
             Order toSave = inv.getArgument(0);
@@ -131,6 +226,8 @@ class OrderServiceImplTest {
     void shouldRejectAndNotSaveWhenStockInsufficient() {
         CreateOrderRequest request =
                 new CreateOrderRequest(List.of(new OrderItemRequest(PRODUCT_ID, QUANTITY)));
+        when(productCatalogClient.getPrices(List.of(PRODUCT_ID)))
+                .thenReturn(Map.of(PRODUCT_ID, new BigDecimal("10.50")));
         when(inventoryClient.checkAvailability(request.items()))
                 .thenReturn(List.of(new UnavailableItem(PRODUCT_ID, QUANTITY, 1))); // просили 2, есть 1
 

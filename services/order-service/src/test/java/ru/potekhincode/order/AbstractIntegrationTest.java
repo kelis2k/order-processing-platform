@@ -13,9 +13,14 @@ import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 import ru.potekhincode.order.client.InventoryClient;
+import ru.potekhincode.order.client.ProductCatalogClient;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -30,8 +35,9 @@ import static org.mockito.Mockito.when;
  * <p>
  * gRPC-сервер отключён ({@code grpc.server.port=-1}) — стриминг покрыт отдельным
  * {@code OrderStatusGrpcServiceIT}. Синхронная gRPC-проверка наличия в {@code create()}
- * подменяется {@link MockitoBean}-заглушкой {@link InventoryClient} (всё в наличии), поэтому
- * реальный inventory-service в этих тестах не нужен.
+ * подменяется {@link MockitoBean}-заглушкой {@link InventoryClient} (всё в наличии), а запрос цен —
+ * заглушкой {@link ProductCatalogClient}, поэтому реальные inventory- и product-service
+ * в этих тестах не нужны.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public abstract class AbstractIntegrationTest {
@@ -54,6 +60,10 @@ public abstract class AbstractIntegrationTest {
     /** Заглушка синхронной проверки наличия: всё доступно → заказ всегда создаётся. */
     @MockitoBean
     protected InventoryClient inventoryClient;
+
+    /** Заглушка каталога цен: любой товар существует и стоит {@code 10.00}. */
+    @MockitoBean
+    protected ProductCatalogClient productCatalogClient;
 
     /**
      * Мок декодера JWT: resource-server работает как в проде (фильтр + правила ролей),
@@ -100,5 +110,9 @@ public abstract class AbstractIntegrationTest {
     @BeforeEach
     void stubInventoryAvailable() {
         when(inventoryClient.checkAvailability(any())).thenReturn(List.of());
+        when(productCatalogClient.getPrices(any())).thenAnswer(invocation -> {
+            List<String> ids = invocation.getArgument(0);
+            return ids.stream().collect(Collectors.toMap(Function.identity(), id -> new BigDecimal("10.00")));
+        });
     }
 }

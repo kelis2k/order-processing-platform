@@ -189,11 +189,11 @@ components:
     PageableObject:
       type: object
       properties:
+        unpaged:
+          type: boolean
         pageNumber:
           type: integer
           format: int32
-        unpaged:
-          type: boolean
         paged:
           type: boolean
         pageSize:

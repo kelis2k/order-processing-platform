@@ -9,12 +9,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.ApplicationEventPublisher;
 import ru.potekhincode.order.client.InventoryClient;
 import ru.potekhincode.order.client.UnavailableItem;
+import ru.potekhincode.order.client.ProductCatalogClient;
 import ru.potekhincode.order.dto.request.CreateOrderRequest;
+import ru.potekhincode.order.dto.request.OrderItemRequest;
 import ru.potekhincode.order.dto.response.OrderResponse;
 import ru.potekhincode.order.exception.InsufficientStockException;
 import ru.potekhincode.order.exception.InvalidStatusTransitionException;
 import ru.potekhincode.order.exception.OrderAccessDeniedException;
 import ru.potekhincode.order.exception.OrderNotFoundException;
+import ru.potekhincode.order.exception.ProductNotFoundException;
 import ru.potekhincode.order.mapper.OrderMapper;
 import ru.potekhincode.order.model.*;
 import ru.potekhincode.order.outbox.OutboxEventFactory;
@@ -29,6 +32,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 
 import java.util.List;
+import java.math.BigDecimal;
+import java.util.Map;
 import java.util.UUID;
 import java.time.OffsetDateTime;
 
@@ -40,6 +45,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper;
     private final InventoryClient inventoryClient;
+    private final ProductCatalogClient productCatalogClient;
     private final OutboxRepository outboxRepository;
     private final SagaStateRepository sagaStateRepository;
     private final OutboxEventFactory outboxEventFactory;
@@ -51,6 +57,19 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse create(CreateOrderRequest request, String userId) {
+        List<String> productIds = request.items().stream()
+                .map(OrderItemRequest::productId)
+                .distinct()
+                .toList();
+        Map<String, BigDecimal> prices = productCatalogClient.getPrices(productIds);
+
+        List<String> unknown = productIds.stream()
+                .filter(id -> !prices.containsKey(id))
+                .toList();
+        if (!unknown.isEmpty()) {
+            throw new ProductNotFoundException(unknown);
+        }
+
         List<UnavailableItem> unavailable = inventoryClient.checkAvailability(request.items());
         if (!unavailable.isEmpty()) {
             throw new InsufficientStockException(unavailable);
@@ -63,9 +82,13 @@ public class OrderServiceImpl implements OrderService {
         request.items().forEach(
                 itemRequest -> {
                     OrderItem item = orderMapper.toEntity(itemRequest);
+                    item.setUnitPrice(prices.get(itemRequest.productId()));
                     order.addItem(item);
                 }
         );
+        order.setTotalAmount(order.getItems().stream()
+                .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
 
         Order saved = orderRepository.save(order);
 

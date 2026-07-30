@@ -21,10 +21,16 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
 
-# gRPC-сервер отключён до реализации gRPC-контракта (этап 6)
 grpc:
   server:
-    port: -1
+    port: 9089
+    security:
+      enabled: true
+      certificate-chain: file:${TLS_DIR:.secrets/dev/tls}/product-server.crt
+      private-key: file:${TLS_DIR:.secrets/dev/tls}/product-server.key
+      protocols: TLSv1.3
+      client-auth: REQUIRE
+      trust-cert-collection: file:${TLS_DIR:.secrets/dev/tls}/ca.crt
 
 management:
   endpoints:
