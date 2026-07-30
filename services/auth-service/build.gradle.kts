@@ -10,6 +10,7 @@ dependencies {
     implementation(libs.spring.boot.starter.data.jpa)
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.actuator)
+    implementation(libs.springdoc.webmvc)
     implementation(libs.kafka.avro.serializer)
     implementation(libs.avro)
     implementation(libs.spring.kafka)

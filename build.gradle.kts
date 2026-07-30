@@ -32,6 +32,10 @@ subprojects {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    configurations.all {
+        exclude(group = "io.swagger.core.v3", module = "swagger-annotations")
+    }
+
     repositories {
         mavenCentral()
         maven {
