@@ -45,6 +45,8 @@ api-gateway:
   service: { type: ClusterIP, port: 8087 }
   autoscaling: { enabled: false }
   resources: *serviceResources
+  ingress:
+    enabled: true
   config:
     JAVA_TOOL_OPTIONS: *javaOpts
     REDIS_HOST: redis
@@ -84,7 +86,6 @@ auth-service:
     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     SCHEMA_REGISTRY_URL: http://schema-registry:8081
     APP_KAFKA_TOPIC_REPLICAS: "1"
-    ADMIN_EMAIL: admin@orders.local
 
 user-service:
   enabled: true
@@ -106,6 +107,7 @@ user-service:
     SCHEMA_REGISTRY_URL: http://schema-registry:8081
     APP_KAFKA_TOPIC_REPLICAS: "1"
     AUTH_JWKS_URI: http://auth-service:8086/.well-known/jwks.json
+    ADMIN_EMAIL: admin@orders.local
 
 product-service:
   enabled: true

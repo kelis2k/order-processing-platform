@@ -19,6 +19,14 @@ config: {}
 
 envFromSecret: ""
 
+ingress:
+  enabled: false
+  className: traefik
+  host: ""
+  path: /
+  pathType: Prefix
+  annotations: {}
+
 volumes: []
 
 volumeMounts: []
