@@ -36,6 +36,20 @@ x-kafka-common: &kafka-common
     KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
   networks: [backend]
 
+x-service-common-env: &service-common-env
+  JAVA_TOOL_OPTIONS: "-javaagent:/otel/agent.jar -XX:MaxRAMPercentage=50"
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+  OTEL_METRICS_EXPORTER: none
+  OTEL_LOGS_EXPORTER: none
+  OTEL_JAVAAGENT_ENABLED: ${OTEL_ENABLED:-true}
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-1:29092,kafka-2:29092,kafka-3:29092
+  KAFKA_BOOTSTRAP_SERVERS: kafka-1:29092,kafka-2:29092,kafka-3:29092
+  KAFKA_BOOTSTRAP: kafka-1:29092,kafka-2:29092,kafka-3:29092
+  SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+  SCHEMA_REGISTRY_URL: http://schema-registry:8081
+  AUTH_JWKS_URI: http://auth-service:8086/.well-known/jwks.json
+
 services:
   # ---------------------------------------------------------------------------
   # Kafka — кластер из 3 брокеров в combined-режиме (broker + controller).
@@ -282,31 +296,248 @@ services:
   # product-service — каталог товаров (Spring Boot, MongoDB).
   # Собирается из исходников monorepo при docker compose up --build.
   # ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Наши микросервисы. Все семь собираются одним infra/docker/Dockerfile.service
+  # (различаются build-arg SERVICE/PORT). JAR'ы собираются на хосте: make build-jars.
+  # OpenTelemetry-агент монтируется томом, выключается через OTEL_ENABLED=false.
+  # ---------------------------------------------------------------------------
+  auth-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE: auth-service
+        PORT: 8086
+    container_name: auth-service
+    depends_on:
+      postgres-auth: { condition: service_healthy }
+      kafka-1: { condition: service_healthy }
+      schema-registry: { condition: service_healthy }
+    ports:
+      - "8086:8086"
+    environment:
+      <<: *service-common-env
+      OTEL_SERVICE_NAME: auth-service
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-auth:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: auth
+      SPRING_DATASOURCE_PASSWORD: auth
+      APP_JWT_PRIVATE_KEY: file:/keys/jwt-private.pem
+      APP_JWT_PUBLIC_KEY: file:/keys/jwt-public.pem
+    volumes:
+      - ./infra/otel/opentelemetry-javaagent.jar:/otel/agent.jar:ro
+      - ./.secrets/dev/jwt:/keys:ro
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8086/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks: [backend]
+
+  user-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE: user-service
+        PORT: 8082
+    container_name: user-service
+    depends_on:
+      postgres-user: { condition: service_healthy }
+      kafka-1: { condition: service_healthy }
+      schema-registry: { condition: service_healthy }
+    ports:
+      - "8082:8082"
+    environment:
+      <<: *service-common-env
+      OTEL_SERVICE_NAME: user-service
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-user:5432/user_db
+      SPRING_DATASOURCE_USERNAME: user_svc
+      SPRING_DATASOURCE_PASSWORD: user_svc
+      ADMIN_EMAIL: admin@orders.local
+    volumes:
+      - ./infra/otel/opentelemetry-javaagent.jar:/otel/agent.jar:ro
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks: [backend]
+
   product-service:
     build:
       context: .
-      dockerfile: services/product-service/Dockerfile
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE: product-service
+        PORT: 8083
     container_name: product-service
     depends_on:
-      mongo:
-        condition: service_healthy
-      kafka-1:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      mongo: { condition: service_healthy }
+      kafka-1: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      schema-registry: { condition: service_healthy }
     ports:
       - "8083:8083"
     environment:
+      <<: *service-common-env
+      OTEL_SERVICE_NAME: product-service
       MONGO_URI: mongodb://mongo:27017/product_db
-      KAFKA_BOOTSTRAP_SERVERS: kafka-1:29092,kafka-2:29092,kafka-3:29092
       REDIS_HOST: redis
       REDIS_PORT: 6379
+    volumes:
+      - ./infra/otel/opentelemetry-javaagent.jar:/otel/agent.jar:ro
+    mem_limit: 768m
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8083/actuator/health"]
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 90s
+    networks: [backend]
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE: inventory-service
+        PORT: 8084
+    container_name: inventory-service
+    depends_on:
+      postgres-inventory: { condition: service_healthy }
+      kafka-1: { condition: service_healthy }
+      schema-registry: { condition: service_healthy }
+    ports:
+      - "8084:8084"
+      - "9090:9090"
+    environment:
+      <<: *service-common-env
+      OTEL_SERVICE_NAME: inventory-service
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-inventory:5432/inventory_db
+      SPRING_DATASOURCE_USERNAME: inventory_svc
+      SPRING_DATASOURCE_PASSWORD: inventory_svc
+      TLS_DIR: /tls
+    volumes:
+      - ./infra/otel/opentelemetry-javaagent.jar:/otel/agent.jar:ro
+      - ./.secrets/dev/tls:/tls:ro
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8084/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks: [backend]
+
+  order-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE: order-service
+        PORT: 8085
+    container_name: order-service
+    depends_on:
+      postgres-order: { condition: service_healthy }
+      kafka-1: { condition: service_healthy }
+      schema-registry: { condition: service_healthy }
+      inventory-service: { condition: service_started }
+    ports:
+      - "8085:8085"
+      - "9091:9091"
+    environment:
+      <<: *service-common-env
+      OTEL_SERVICE_NAME: order-service
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-order:5432/order_db
+      SPRING_DATASOURCE_USERNAME: order_svc
+      SPRING_DATASOURCE_PASSWORD: order_svc
+      GRPC_CLIENT_INVENTORY_ADDRESS: static://inventory-service:9090
+      TLS_DIR: /tls
+    volumes:
+      - ./infra/otel/opentelemetry-javaagent.jar:/otel/agent.jar:ro
+      - ./.secrets/dev/tls:/tls:ro
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8085/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks: [backend]
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE: notification-service
+        PORT: 8088
+    container_name: notification-service
+    depends_on:
+      mongo: { condition: service_healthy }
+      kafka-1: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      schema-registry: { condition: service_healthy }
+      mailhog: { condition: service_started }
+    ports:
+      - "8088:8088"
+    environment:
+      <<: *service-common-env
+      OTEL_SERVICE_NAME: notification-service
+      MONGO_URI: mongodb://mongo:27017/notification_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      MAIL_HOST: mailhog
+      MAIL_PORT: 1025
+      MAIL_FROM: no-reply@orders.local
+    volumes:
+      - ./infra/otel/opentelemetry-javaagent.jar:/otel/agent.jar:ro
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8088/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks: [backend]
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.service
+      args:
+        SERVICE: api-gateway
+        PORT: 8087
+    container_name: api-gateway
+    depends_on:
+      redis: { condition: service_healthy }
+      auth-service: { condition: service_started }
+    ports:
+      - "8087:8087"
+    environment:
+      <<: *service-common-env
+      OTEL_SERVICE_NAME: api-gateway
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AUTH_URI: http://auth-service:8086
+      USER_URI: http://user-service:8082
+      PRODUCT_URI: http://product-service:8083
+      ORDER_URI: http://order-service:8085
+    volumes:
+      - ./infra/otel/opentelemetry-javaagent.jar:/otel/agent.jar:ro
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8087/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
     networks: [backend]
 
   # ---------------------------------------------------------------------------

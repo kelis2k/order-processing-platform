@@ -34,8 +34,9 @@ help: ## Список доступных команд
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
-dev-up: build-jars ## Поднять весь стек локально (detached). Пересобирает JAR и Docker-образы
+dev-up: otel-agent tls-certs dev-secrets build-jars ## Поднять весь стек локально (detached). Пересобирает JAR и Docker-образы
 	$(COMPOSE) up -d --build
+	@echo "gateway http://localhost:8087 | swagger http://localhost:8083/swagger-ui.html | jaeger http://localhost:16686 | mailhog http://localhost:8025"
 
 dev-down: ## Остановить стек (данные в volumes сохраняются)
 	$(COMPOSE) down
@@ -112,9 +113,10 @@ inject-secrets: kubeseal dev-secrets ## [9.4] Зашифровать .secrets/de
 
 OTEL_AGENT_VERSION := 2.29.0
 otel-agent: ## Скачать OpenTelemetry Java agent (версия зафиксирована ради воспроизводимости)
-	mkdir -p infra/otel
-	curl -sL -o infra/otel/opentelemetry-javaagent.jar \
-		https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v$(OTEL_AGENT_VERSION)/opentelemetry-javaagent.jar
+	@test -s infra/otel/opentelemetry-javaagent.jar && echo "✔ OTel-агент уже скачан" || { \
+	  mkdir -p infra/otel; \
+	  curl -sL -o infra/otel/opentelemetry-javaagent.jar \
+	    https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v$(OTEL_AGENT_VERSION)/opentelemetry-javaagent.jar; }
 
 tls-certs: ## [8.3] Сгенерировать dev-PKI для gRPC TLS (CA + сертификаты сервисов)
 	./infra/tls/gen-certs.sh
