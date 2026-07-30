@@ -1,0 +1,204 @@
+openapi: 3.1.0
+info:
+  title: Order Service API
+  description: "Жизненный цикл заказа, SAGA-оркестрация"
+  version: "1.0"
+servers:
+- url: http://localhost:8085
+  description: Generated server url
+security:
+- bearerAuth: []
+paths:
+  /orders:
+    get:
+      tags:
+      - order-controller
+      operationId: list
+      parameters:
+      - name: pageable
+        in: query
+        required: true
+        schema:
+          $ref: "#/components/schemas/Pageable"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageOrderResponse"
+    post:
+      tags:
+      - order-controller
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OrderResponse"
+  /orders/{id}:
+    get:
+      tags:
+      - order-controller
+      operationId: findById
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OrderResponse"
+components:
+  schemas:
+    CreateOrderRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItemRequest"
+      required:
+      - items
+    OrderItemRequest:
+      type: object
+      properties:
+        productId:
+          type: string
+        quantity:
+          type: integer
+          format: int32
+      required:
+      - productId
+    OrderItemResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        productId:
+          type: string
+        quantity:
+          type: integer
+          format: int32
+        unitPrice:
+          type: number
+    OrderResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+        status:
+          type: string
+          enum:
+          - NEW
+          - RESERVED
+          - PAID
+          - SHIPPED
+          - COMPLETED
+          - CANCELLED
+        totalAmount:
+          type: number
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItemResponse"
+        createdAt:
+          type: string
+          format: date-time
+    Pageable:
+      type: object
+      properties:
+        page:
+          type: integer
+          format: int32
+          minimum: 0
+        size:
+          type: integer
+          format: int32
+          minimum: 1
+        sort:
+          type: array
+          items:
+            type: string
+    PageOrderResponse:
+      type: object
+      properties:
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        numberOfElements:
+          type: integer
+          format: int32
+        first:
+          type: boolean
+        last:
+          type: boolean
+        size:
+          type: integer
+          format: int32
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderResponse"
+        number:
+          type: integer
+          format: int32
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        empty:
+          type: boolean
+    PageableObject:
+      type: object
+      properties:
+        unpaged:
+          type: boolean
+        paged:
+          type: boolean
+        pageNumber:
+          type: integer
+          format: int32
+        pageSize:
+          type: integer
+          format: int32
+        offset:
+          type: integer
+          format: int64
+        sort:
+          $ref: "#/components/schemas/SortObject"
+    SortObject:
+      type: object
+      properties:
+        sorted:
+          type: boolean
+        unsorted:
+          type: boolean
+        empty:
+          type: boolean
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

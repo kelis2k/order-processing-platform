@@ -28,7 +28,7 @@ export no_proxy := $(NO_PROXY)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build-jars docker-images dev-up dev-down dev-logs dev-reset k3d-up k3d-down kubeseal dev-secrets sealed-controller inject-secrets otel-agent tls-certs
+.PHONY: help openapi build-jars docker-images dev-up dev-down dev-logs dev-reset k3d-up k3d-down kubeseal dev-secrets sealed-controller inject-secrets otel-agent tls-certs
 
 help: ## Список доступных команд
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -120,6 +120,16 @@ otel-agent: ## Скачать OpenTelemetry Java agent (версия зафик�
 
 tls-certs: ## [8.3] Сгенерировать dev-PKI для gRPC TLS (CA + сертификаты сервисов)
 	./infra/tls/gen-certs.sh
+
+REST_SERVICES := auth-service user-service product-service order-service
+openapi: ## [10.0] Снять OpenAPI-спеки с поднятого стека в openapi/ (нужен make dev-up)
+	@mkdir -p openapi
+	@for s in $(REST_SERVICES); do \
+	  port=$$(grep "^PORT_$$s " Makefile | awk '{print $$3}'); \
+	  curl -sf --noproxy '*' --max-time 20 "http://localhost:$$port/v3/api-docs.yaml" -o "openapi/$$s.yaml" \
+	    || { echo "✘ $$s (:$$port) не ответил — стек поднят? make dev-up"; exit 1; }; \
+	  echo "✔ openapi/$$s.yaml ($$(wc -l < openapi/$$s.yaml) строк)"; \
+	done
 
 build-jars: ## Собрать bootJar'ы всех сервисов на хосте (зависимости через хостовый Gradle-кэш)
 	./gradlew $(foreach s,$(SERVICES),:services:$(s):bootJar)
