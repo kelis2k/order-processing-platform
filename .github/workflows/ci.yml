@@ -145,6 +145,7 @@ jobs:
     name: Deploy dev
     if: github.event_name == 'push'
     needs: images
+    environment: dev
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -226,6 +227,96 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: k3d-diagnostics
+          path: diag
+          retention-days: 3
+
+  deploy-prod:
+    name: Deploy prod
+    if: github.event_name == 'push'
+    needs: deploy-dev
+    environment: prod
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      K3D_CLUSTER: prod
+      K8S_NAMESPACE: platform-prod
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install k3d
+        run: |
+          curl -sSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.9.0 bash
+          k3d version
+          kubectl version --client
+          helm version --short
+
+      - name: Create cluster
+        run: |
+          k3d cluster create "$K3D_CLUSTER" \
+            --servers 1 --agents 0 \
+            -p "8087:80@loadbalancer" \
+            --wait
+          kubectl get nodes
+
+      - name: Generate dev TLS certificates
+        run: ./infra/tls/gen-certs.sh
+
+      - name: Generate dev secrets (JWT, DB)
+        run: ./infra/secrets/gen-dev-secrets.sh
+
+      - name: Apply secrets to cluster
+        run: ./infra/secrets/apply-dev-secrets.sh "$K8S_NAMESPACE"
+
+      - name: Helm release
+        run: |
+          helm dependency update helm/platform
+          SETS=""
+          for s in api-gateway auth-service user-service product-service \
+                   inventory-service order-service notification-service; do
+            SETS="$SETS --set-string $s.image.tag=${{ github.sha }}"
+          done
+          helm upgrade --install platform helm/platform \
+            -n "$K8S_NAMESPACE" \
+            -f helm/platform/values-ci.yaml \
+            -f helm/platform/values-prod.yaml \
+            $SETS \
+            --wait --timeout 10m --atomic
+
+      - name: Show cluster state
+        run: |
+          helm status platform -n "$K8S_NAMESPACE"
+          kubectl get pods -n "$K8S_NAMESPACE" -o wide
+
+      - name: Port-forward MailHog
+        run: |
+          kubectl port-forward -n "$K8S_NAMESPACE" svc/mailhog 8025:8025 &
+          for _ in $(seq 1 30); do
+            curl -sf http://localhost:8025/api/v2/messages >/dev/null && break
+            sleep 1
+          done
+
+      - name: Smoke tests
+        run: ./demo.sh
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          mkdir -p diag
+          kubectl get all -n "$K8S_NAMESPACE" -o wide > diag/get-all.txt 2>&1 || true
+          kubectl get events -n "$K8S_NAMESPACE" --sort-by=.lastTimestamp > diag/events.txt 2>&1 || true
+          kubectl describe pods -n "$K8S_NAMESPACE" > diag/describe.txt 2>&1 || true
+          for p in $(kubectl get pods -n "$K8S_NAMESPACE" -o name); do
+            n=$(basename "$p")
+            kubectl logs "$p" -n "$K8S_NAMESPACE" --all-containers --tail=300 > "diag/$n.log" 2>&1 || true
+            kubectl logs "$p" -n "$K8S_NAMESPACE" --all-containers --previous --tail=300 > "diag/$n.prev.log" 2>&1 || true
+          done
+
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k3d-diagnostics-prod
           path: diag
           retention-days: 3
 

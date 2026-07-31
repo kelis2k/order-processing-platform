@@ -1,0 +1,19 @@
+api-gateway:
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 75
+  resources:
+    requests: { cpu: 200m, memory: 512Mi }
+    limits:   { cpu: "1",  memory: 768Mi }
+
+order-service:
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 75
+  resources:
+    requests: { cpu: 200m, memory: 512Mi }
+    limits:   { cpu: "1",  memory: 768Mi }
