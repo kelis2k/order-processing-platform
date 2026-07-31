@@ -5,6 +5,10 @@ plugins {
 ext["testcontainers.version"] = libs.versions.testcontainers.get()
 
 dependencies {
+    constraints {
+        implementation("org.bouncycastle:bcprov-jdk18on:1.84")
+    }
+
     implementation("org.springframework.cloud:spring-cloud-starter-gateway")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-security")
