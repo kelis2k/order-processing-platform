@@ -37,6 +37,9 @@ jobs:
       - name: Generate dev TLS certificates
         run: ./infra/tls/gen-certs.sh
 
+      - name: Checkstyle
+        run: ./gradlew checkstyleMain checkstyleTest --no-daemon
+
       - name: Build & unit tests
         run: ./gradlew build -x jacocoTestCoverageVerification --no-daemon
 

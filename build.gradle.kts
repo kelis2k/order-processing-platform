@@ -1,3 +1,5 @@
+import org.gradle.api.plugins.quality.CheckstyleExtension
+import org.gradle.api.plugins.quality.Checkstyle
 import org.owasp.dependencycheck.gradle.extension.DependencyCheckExtension
 import org.gradle.testing.jacoco.plugins.JacocoPluginExtension
 import org.gradle.testing.jacoco.tasks.JacocoReport
@@ -80,6 +82,23 @@ subprojects {
         }
     }
 
+    if (path == ":common" || path.startsWith(":services:")) {
+        apply(plugin = "checkstyle")
+
+        configure<CheckstyleExtension> {
+            toolVersion = "10.21.0"
+            configFile = rootProject.file("config/checkstyle/checkstyle.xml")
+            isIgnoreFailures = false
+            maxWarnings = 0
+        }
+
+        tasks.withType<Checkstyle>().configureEach {
+            reports {
+                xml.required.set(false)
+                html.required.set(true)
+            }
+        }
+    }
 
     apply(plugin = "jacoco")
 
