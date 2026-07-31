@@ -32,7 +32,8 @@ public class AdminBootstrapRunner implements ApplicationRunner {
 
         repository.findByEmail(adminEmail).ifPresentOrElse(
                 profile -> service.changeRole(profile.getId(), Role.ROLE_ADMIN),
-                () -> log.warn("Bootstrap: профиль {} не найден — сначала зарегистрируй+подтверди, потом перезапусти user-service", adminEmail)
+                () -> log.warn("Bootstrap: профиль {} не найден — сначала зарегистрируй+подтверди, потом перезапусти user-service",
+                        adminEmail)
         );
     }
 }

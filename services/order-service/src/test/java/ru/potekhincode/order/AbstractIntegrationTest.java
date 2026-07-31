@@ -18,7 +18,6 @@ import ru.potekhincode.order.client.ProductCatalogClient;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 

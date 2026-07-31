@@ -4,10 +4,6 @@ import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.server.service.GrpcService;
-import ru.potekhincode.product.grpc.GetPricesRequest;
-import ru.potekhincode.product.grpc.GetPricesResponse;
-import ru.potekhincode.product.grpc.ProductCatalogServiceGrpc;
-import ru.potekhincode.product.grpc.ProductPrice;
 import ru.potekhincode.product.model.Product;
 import ru.potekhincode.product.repository.ProductRepository;
 

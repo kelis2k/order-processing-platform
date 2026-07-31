@@ -2,7 +2,6 @@ package ru.potekhincode.product.service;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
 import ru.potekhincode.product.dto.request.CreateProductRequest;
 import ru.potekhincode.product.dto.request.ProductSearchParams;
 import ru.potekhincode.product.dto.request.UpdateProductRequest;

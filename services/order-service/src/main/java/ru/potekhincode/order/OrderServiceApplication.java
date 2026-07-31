@@ -9,7 +9,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@OpenAPIDefinition(info = @Info(title = "Order Service API", version = "1.0", description = "Жизненный цикл заказа, SAGA-оркестрация"), security = @SecurityRequirement(name = "bearerAuth"))
+@OpenAPIDefinition(
+        info = @Info(title = "Order Service API", version = "1.0", description = "Жизненный цикл заказа, SAGA-оркестрация"),
+        security = @SecurityRequirement(name = "bearerAuth"))
 @SecurityScheme(name = "bearerAuth", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
 @SpringBootApplication
 @EnableScheduling

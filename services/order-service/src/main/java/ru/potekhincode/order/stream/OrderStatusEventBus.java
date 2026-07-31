@@ -3,7 +3,6 @@ package ru.potekhincode.order.stream;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
-import ru.potekhincode.order.event.OrderStatusChangedEvent;
 import ru.potekhincode.order.grpc.OrderStatusUpdate;
 
 @Component

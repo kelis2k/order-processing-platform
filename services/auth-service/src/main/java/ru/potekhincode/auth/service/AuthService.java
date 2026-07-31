@@ -1,7 +1,11 @@
 package ru.potekhincode.auth.service;
 
 
-import ru.potekhincode.auth.dto.*;
+import ru.potekhincode.auth.dto.ConfirmRequest;
+import ru.potekhincode.auth.dto.LoginRequest;
+import ru.potekhincode.auth.dto.RefreshRequest;
+import ru.potekhincode.auth.dto.RegisterRequest;
+import ru.potekhincode.auth.dto.TokenResponse;
 import ru.potekhincode.auth.model.AuthProvider;
 import ru.potekhincode.auth.model.Role;
 

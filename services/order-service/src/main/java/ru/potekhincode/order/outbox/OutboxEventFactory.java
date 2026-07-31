@@ -68,7 +68,11 @@ public class OutboxEventFactory {
     private String currentTraceparent() {
         Map<String, String> carrier = new HashMap<>();
         GlobalOpenTelemetry.getPropagators().getTextMapPropagator()
-                .inject(Context.current(), carrier, (c, k, v) -> { if (c != null) c.put(k, v); });
+                .inject(Context.current(), carrier, (c, k, v) -> {
+                    if (c != null) {
+                        c.put(k, v);
+                    }
+                });
         return carrier.get("traceparent");
     }
 }

@@ -8,7 +8,9 @@ import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@OpenAPIDefinition(info = @Info(title = "Product Service API", version = "1.0", description = "Каталог товаров: CRUD и поиск"), security = @SecurityRequirement(name = "bearerAuth"))
+@OpenAPIDefinition(
+        info = @Info(title = "Product Service API", version = "1.0", description = "Каталог товаров: CRUD и поиск"),
+        security = @SecurityRequirement(name = "bearerAuth"))
 @SecurityScheme(name = "bearerAuth", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
 @SpringBootApplication
 public class ProductServiceApplication {
