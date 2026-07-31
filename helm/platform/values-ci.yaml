@@ -1,0 +1,20 @@
+api-gateway:
+  image: { repository: ghcr.io/kelis2k/api-gateway, pullPolicy: IfNotPresent }
+
+auth-service:
+  image: { repository: ghcr.io/kelis2k/auth-service, pullPolicy: IfNotPresent }
+
+user-service:
+  image: { repository: ghcr.io/kelis2k/user-service, pullPolicy: IfNotPresent }
+
+product-service:
+  image: { repository: ghcr.io/kelis2k/product-service, pullPolicy: IfNotPresent }
+
+inventory-service:
+  image: { repository: ghcr.io/kelis2k/inventory-service, pullPolicy: IfNotPresent }
+
+order-service:
+  image: { repository: ghcr.io/kelis2k/order-service, pullPolicy: IfNotPresent }
+
+notification-service:
+  image: { repository: ghcr.io/kelis2k/notification-service, pullPolicy: IfNotPresent }
