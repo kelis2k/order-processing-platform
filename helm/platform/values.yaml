@@ -55,6 +55,7 @@ api-gateway:
     USER_URI: http://user-service:8082
     PRODUCT_URI: http://product-service:8083
     ORDER_URI: http://order-service:8085
+    INVENTORY_URI: http://inventory-service:8084
     AUTH_JWKS_URI: http://auth-service:8086/.well-known/jwks.json
 
 auth-service:

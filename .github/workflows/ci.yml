@@ -156,7 +156,7 @@ jobs:
 
       - name: Install k3d
         run: |
-          curl -sSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+          curl -sSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.9.0 bash
           k3d version
           kubectl version --client
           helm version --short
@@ -196,6 +196,17 @@ jobs:
         run: |
           helm status platform -n "$K8S_NAMESPACE"
           kubectl get pods -n "$K8S_NAMESPACE" -o wide
+
+      - name: Port-forward MailHog
+        run: |
+          kubectl port-forward -n "$K8S_NAMESPACE" svc/mailhog 8025:8025 &
+          for _ in $(seq 1 30); do
+            curl -sf http://localhost:8025/api/v2/messages >/dev/null && break
+            sleep 1
+          done
+
+      - name: Smoke tests
+        run: ./demo.sh
 
       - name: Diagnostics on failure
         if: failure()

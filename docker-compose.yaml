@@ -535,6 +535,7 @@ services:
       USER_URI: http://user-service:8082
       PRODUCT_URI: http://product-service:8083
       ORDER_URI: http://order-service:8085
+      INVENTORY_URI: http://inventory-service:8084
     volumes:
       - ./infra/otel/opentelemetry-javaagent.jar:/otel/agent.jar:ro
     mem_limit: 768m

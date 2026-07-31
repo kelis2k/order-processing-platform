@@ -40,6 +40,17 @@ spring:
                 resilient-rate-limiter.refillRate: ${app.rate-limit.order.refill-rate}
                 resilient-rate-limiter.burstCapacity: ${app.rate-limit.order.burst-capacity}
                 resilient-rate-limiter.requestedTokens: ${app.rate-limit.order.requested-tokens}
+        - id: inventory-service
+          uri: ${INVENTORY_URI:http://localhost:8084}
+          predicates:
+            - Path=/inventory/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@userOrIpKeyResolver}"
+                resilient-rate-limiter.refillRate: ${app.rate-limit.inventory.refill-rate}
+                resilient-rate-limiter.burstCapacity: ${app.rate-limit.inventory.burst-capacity}
+                resilient-rate-limiter.requestedTokens: ${app.rate-limit.inventory.requested-tokens}
         - id: user-service
           uri: ${USER_URI:http://localhost:8082}
           predicates:
@@ -83,6 +94,10 @@ app:
       refill-rate: ${RL_USER_REFILL:10}
       burst-capacity: ${RL_USER_BURST:20}
       requested-tokens: ${RL_USER_TOKENS:1}
+    inventory:
+      refill-rate: ${RL_INVENTORY_REFILL:10}
+      burst-capacity: ${RL_INVENTORY_BURST:20}
+      requested-tokens: ${RL_INVENTORY_TOKENS:1}
 
 management:
   endpoints:
