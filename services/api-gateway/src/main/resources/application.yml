@@ -6,62 +6,64 @@ spring:
     name: api-gateway
   cloud:
     gateway:
-      routes:
-        - id: auth-service
-          uri: ${AUTH_URI:http://localhost:8086}
-          predicates:
-            - Path=/auth/**,/oauth2/**,/login/**,/.well-known/jwks.json
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@userOrIpKeyResolver}"
-                resilient-rate-limiter.refillRate: ${app.rate-limit.auth.refill-rate}
-                resilient-rate-limiter.burstCapacity: ${app.rate-limit.auth.burst-capacity}
-                resilient-rate-limiter.requestedTokens: ${app.rate-limit.auth.requested-tokens}
-        - id: product-service
-          uri: ${PRODUCT_URI:http://localhost:8083}
-          predicates:
-            - Path=/products/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@userOrIpKeyResolver}"
-                resilient-rate-limiter.refillRate: ${app.rate-limit.product.refill-rate}
-                resilient-rate-limiter.burstCapacity: ${app.rate-limit.product.burst-capacity}
-                resilient-rate-limiter.requestedTokens: ${app.rate-limit.product.requested-tokens}
-        - id: order-service
-          uri: ${ORDER_URI:http://localhost:8085}
-          predicates:
-            - Path=/orders/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@userOrIpKeyResolver}"
-                resilient-rate-limiter.refillRate: ${app.rate-limit.order.refill-rate}
-                resilient-rate-limiter.burstCapacity: ${app.rate-limit.order.burst-capacity}
-                resilient-rate-limiter.requestedTokens: ${app.rate-limit.order.requested-tokens}
-        - id: inventory-service
-          uri: ${INVENTORY_URI:http://localhost:8084}
-          predicates:
-            - Path=/inventory/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@userOrIpKeyResolver}"
-                resilient-rate-limiter.refillRate: ${app.rate-limit.inventory.refill-rate}
-                resilient-rate-limiter.burstCapacity: ${app.rate-limit.inventory.burst-capacity}
-                resilient-rate-limiter.requestedTokens: ${app.rate-limit.inventory.requested-tokens}
-        - id: user-service
-          uri: ${USER_URI:http://localhost:8082}
-          predicates:
-            - Path=/users/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                key-resolver: "#{@userOrIpKeyResolver}"
-                resilient-rate-limiter.refillRate: ${app.rate-limit.user.refill-rate}
-                resilient-rate-limiter.burstCapacity: ${app.rate-limit.user.burst-capacity}
-                resilient-rate-limiter.requestedTokens: ${app.rate-limit.user.requested-tokens}
+      server:
+        webflux:
+          routes:
+            - id: auth-service
+              uri: ${AUTH_URI:http://localhost:8086}
+              predicates:
+                - Path=/auth/**,/oauth2/**,/login/**,/.well-known/jwks.json
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userOrIpKeyResolver}"
+                    resilient-rate-limiter.refillRate: ${app.rate-limit.auth.refill-rate}
+                    resilient-rate-limiter.burstCapacity: ${app.rate-limit.auth.burst-capacity}
+                    resilient-rate-limiter.requestedTokens: ${app.rate-limit.auth.requested-tokens}
+            - id: product-service
+              uri: ${PRODUCT_URI:http://localhost:8083}
+              predicates:
+                - Path=/products/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userOrIpKeyResolver}"
+                    resilient-rate-limiter.refillRate: ${app.rate-limit.product.refill-rate}
+                    resilient-rate-limiter.burstCapacity: ${app.rate-limit.product.burst-capacity}
+                    resilient-rate-limiter.requestedTokens: ${app.rate-limit.product.requested-tokens}
+            - id: order-service
+              uri: ${ORDER_URI:http://localhost:8085}
+              predicates:
+                - Path=/orders/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userOrIpKeyResolver}"
+                    resilient-rate-limiter.refillRate: ${app.rate-limit.order.refill-rate}
+                    resilient-rate-limiter.burstCapacity: ${app.rate-limit.order.burst-capacity}
+                    resilient-rate-limiter.requestedTokens: ${app.rate-limit.order.requested-tokens}
+            - id: inventory-service
+              uri: ${INVENTORY_URI:http://localhost:8084}
+              predicates:
+                - Path=/inventory/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userOrIpKeyResolver}"
+                    resilient-rate-limiter.refillRate: ${app.rate-limit.inventory.refill-rate}
+                    resilient-rate-limiter.burstCapacity: ${app.rate-limit.inventory.burst-capacity}
+                    resilient-rate-limiter.requestedTokens: ${app.rate-limit.inventory.requested-tokens}
+            - id: user-service
+              uri: ${USER_URI:http://localhost:8082}
+              predicates:
+                - Path=/users/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userOrIpKeyResolver}"
+                    resilient-rate-limiter.refillRate: ${app.rate-limit.user.refill-rate}
+                    resilient-rate-limiter.burstCapacity: ${app.rate-limit.user.burst-capacity}
+                    resilient-rate-limiter.requestedTokens: ${app.rate-limit.user.requested-tokens}
   data:
     redis:
       host: ${REDIS_HOST:localhost}
