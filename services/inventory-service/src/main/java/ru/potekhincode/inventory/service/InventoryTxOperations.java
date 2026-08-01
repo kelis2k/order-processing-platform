@@ -5,7 +5,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import ru.potekhincode.inventory.exception.InsufficientStockException;
 import ru.potekhincode.inventory.model.Inventory;
+import ru.potekhincode.inventory.model.Reservation;
 import ru.potekhincode.inventory.repository.InventoryRepository;
+import ru.potekhincode.inventory.repository.ReservationRepository;
 
 /**
  * Транзакционные операции над запасами: одна попытка = одна транзакция.
@@ -21,6 +23,7 @@ import ru.potekhincode.inventory.repository.InventoryRepository;
 public class InventoryTxOperations {
 
     private final InventoryRepository inventoryRepository;
+    private final ReservationRepository reservationRepository;
 
     @Transactional
     public void reserveOnce(String orderId, String productId, int quantity) {
@@ -44,6 +47,8 @@ public class InventoryTxOperations {
      */
     @Transactional
     public void reserveAllOnce(String orderId, java.util.List<ReservationItem> items) {
+        reservationRepository.saveAndFlush(new Reservation(orderId));
+
         for (ReservationItem item : items) {
             Inventory inventory = inventoryRepository.findByProductId(item.productId())
                     .orElseThrow(() -> new InsufficientStockException(item.productId(), item.quantity(), 0));

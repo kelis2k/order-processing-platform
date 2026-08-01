@@ -1,6 +1,8 @@
 package ru.potekhincode.inventory.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -8,12 +10,14 @@ import ru.potekhincode.inventory.dto.StockResponse;
 import ru.potekhincode.inventory.exception.StockNotFoundException;
 import ru.potekhincode.inventory.model.Inventory;
 import ru.potekhincode.inventory.repository.InventoryRepository;
+import ru.potekhincode.inventory.repository.ReservationRepository;
 import ru.potekhincode.inventory.service.InventoryService;
 import ru.potekhincode.inventory.service.InventoryTxOperations;
 import ru.potekhincode.inventory.service.ReservationItem;
 
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class InventoryServiceImpl implements InventoryService {
@@ -21,6 +25,7 @@ public class InventoryServiceImpl implements InventoryService {
     private static final int MAX_RETRIES = 3;
 
     private final InventoryRepository inventoryRepository;
+    private final ReservationRepository reservationRepository;
     private final InventoryTxOperations txOperations;
 
     @Override
@@ -69,7 +74,14 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     public void reserve(String orderId, List<ReservationItem> items) {
-        executeWithRetry(() -> txOperations.reserveAllOnce(orderId, items), "reserve");
+        try {
+            executeWithRetry(() -> txOperations.reserveAllOnce(orderId, items), "reserve");
+        } catch (DataIntegrityViolationException e) {
+            if (!reservationRepository.existsByOrderId(orderId)) {
+                throw e;
+            }
+            log.info("Duplicate order.created for orderId={}, reservation skipped", orderId);
+        }
     }
 
     @Override

@@ -5,14 +5,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import ru.potekhincode.inventory.exception.InsufficientStockException;
 import ru.potekhincode.inventory.dto.StockResponse;
 import ru.potekhincode.inventory.exception.StockNotFoundException;
 import ru.potekhincode.inventory.model.Inventory;
 import ru.potekhincode.inventory.repository.InventoryRepository;
+import ru.potekhincode.inventory.repository.ReservationRepository;
 import ru.potekhincode.inventory.service.impl.InventoryServiceImpl;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,6 +38,9 @@ class InventoryServiceImplTest {
 
     @Mock
     private InventoryRepository inventoryRepository;
+
+    @Mock
+    private ReservationRepository reservationRepository;
 
     @Mock
     private InventoryTxOperations txOperations;
@@ -198,5 +204,48 @@ class InventoryServiceImplTest {
                 .hasMessageContaining("release");
 
         verify(txOperations, times(3)).releaseOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
+    }
+
+    @Test
+    void reserveAllSkipsSilentlyOnDuplicateOrder() {
+        List<ReservationItem> items = List.of(new ReservationItem(PRODUCT_ID, QUANTITY));
+        doThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint"))
+                .when(txOperations).reserveAllOnce(ORDER_ID, items);
+        when(reservationRepository.existsByOrderId(ORDER_ID)).thenReturn(true);
+
+        inventoryService.reserve(ORDER_ID, items);
+
+        verify(txOperations, times(1)).reserveAllOnce(ORDER_ID, items);
+    }
+
+    @Test
+    void reserveAllDelegatesOnceWhenOrderIsNew() {
+        List<ReservationItem> items = List.of(new ReservationItem(PRODUCT_ID, QUANTITY));
+        doNothing().when(txOperations).reserveAllOnce(ORDER_ID, items);
+
+        inventoryService.reserve(ORDER_ID, items);
+
+        verify(txOperations, times(1)).reserveAllOnce(ORDER_ID, items);
+    }
+
+    @Test
+    void reserveAllStillPropagatesInsufficientStock() {
+        List<ReservationItem> items = List.of(new ReservationItem(PRODUCT_ID, QUANTITY));
+        doThrow(new InsufficientStockException(PRODUCT_ID, QUANTITY, 1))
+                .when(txOperations).reserveAllOnce(ORDER_ID, items);
+
+        assertThatThrownBy(() -> inventoryService.reserve(ORDER_ID, items))
+                .isInstanceOf(InsufficientStockException.class);
+    }
+
+    @Test
+    void reserveAllRethrowsIntegrityErrorThatIsNotDuplicate() {
+        List<ReservationItem> items = List.of(new ReservationItem(PRODUCT_ID, QUANTITY));
+        doThrow(new DataIntegrityViolationException("value too long for type character varying(36)"))
+                .when(txOperations).reserveAllOnce(ORDER_ID, items);
+        when(reservationRepository.existsByOrderId(ORDER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> inventoryService.reserve(ORDER_ID, items))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

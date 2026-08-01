@@ -30,7 +30,7 @@ public class OutboxPoller {
     @Scheduled(fixedDelayString = "${app.outbox.poll-interval-ms:1000}")
     @Transactional
     public void publishPending() {
-        List<OutboxEvent> batch = outboxRepository.findTop100ByPublishedAtIsNullOrderByCreatedAtAsc();
+        List<OutboxEvent> batch = outboxRepository.lockPendingBatch();
         for (OutboxEvent event : batch) {
             publish(event);
             event.setPublishedAt(OffsetDateTime.now()); // dirty-checking запишет при commit

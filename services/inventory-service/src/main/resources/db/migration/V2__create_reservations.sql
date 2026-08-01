@@ -1,0 +1,5 @@
+CREATE TABLE reservations (
+    id BIGSERIAL PRIMARY KEY,
+    order_id VARCHAR(64) NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

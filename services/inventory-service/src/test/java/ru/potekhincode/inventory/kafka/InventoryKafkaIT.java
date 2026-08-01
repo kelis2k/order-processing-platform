@@ -20,6 +20,7 @@ import ru.potekhincode.avro.OrderLineItem;
 import ru.potekhincode.inventory.AbstractIntegrationTest;
 import ru.potekhincode.inventory.model.Inventory;
 import ru.potekhincode.inventory.repository.InventoryRepository;
+import ru.potekhincode.inventory.repository.ReservationRepository;
 
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
@@ -43,14 +44,19 @@ class InventoryKafkaIT extends AbstractIntegrationTest {
 
     private static final String SUCCESS_PRODUCT_ID = "prod-it-success-00000001";
     private static final String COMP_PRODUCT_ID = "prod-it-comp-000000001";
+    private static final String DUP_PRODUCT_ID = "prod-it-dup-0000000001";
 
     @Autowired
     private InventoryRepository inventoryRepository;
+
+    @Autowired
+    private ReservationRepository reservationRepository;
 
     private KafkaConsumer<String, InventoryReserved> reservedConsumer;
 
     @BeforeEach
     void setUp() {
+        reservationRepository.deleteAll();
         inventoryRepository.deleteAll();
         reservedConsumer = new KafkaConsumer<>(consumerProps());
         reservedConsumer.subscribe(List.of(INVENTORY_RESERVED_TOPIC));
@@ -96,6 +102,30 @@ class InventoryKafkaIT extends AbstractIntegrationTest {
         Inventory unchanged = inventoryRepository.findByProductId(COMP_PRODUCT_ID).orElseThrow();
         assertThat(unchanged.getAvailable()).isEqualTo(2);
         assertThat(unchanged.getReserved()).isZero();
+    }
+
+    @Test
+    void duplicateOrderCreatedReservesStockOnlyOnce() {
+        inventoryRepository.save(inventory(DUP_PRODUCT_ID, 10));
+        String orderId = "order-" + UUID.randomUUID();
+
+        publishOrderCreated(orderId, DUP_PRODUCT_ID, 3);
+
+        await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> {
+            Inventory updated = inventoryRepository.findByProductId(DUP_PRODUCT_ID).orElseThrow();
+            assertThat(updated.getAvailable()).isEqualTo(7);
+            assertThat(updated.getReserved()).isEqualTo(3);
+        });
+
+        publishOrderCreated(orderId, DUP_PRODUCT_ID, 3);
+
+        await().during(Duration.ofSeconds(5)).atMost(Duration.ofSeconds(15)).untilAsserted(() -> {
+            Inventory afterDuplicate = inventoryRepository.findByProductId(DUP_PRODUCT_ID).orElseThrow();
+            assertThat(afterDuplicate.getAvailable()).isEqualTo(7);
+            assertThat(afterDuplicate.getReserved()).isEqualTo(3);
+        });
+
+        assertThat(reservationRepository.count()).isEqualTo(1);
     }
 
     private Inventory inventory(String productId, int available) {
