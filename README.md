@@ -13,51 +13,73 @@
 ## Архитектура
 
 ```mermaid
-flowchart TB
+%%{init: {'flowchart': {'rankSpacing': 90, 'nodeSpacing': 45, 'diagramPadding': 20,
+'subGraphTitleMargin': {'top': 8, 'bottom': 12}}}}%%
+flowchart LR
     client([Клиент])
+    gw["api-gateway"]
 
-    subgraph edge[" "]
-        gw["api-gateway :8087<br/>маршрутизация, JWT, rate-limit"]
+    subgraph services["Сервисы"]
+        auth["auth-service"]
+        user["user-service"]
+        product["product-service"]
+        inventory["inventory-service"]
+        order["order-service"]
+        notification["notification-service"]
     end
 
-    subgraph services["Микросервисы"]
-        auth["auth-service :8086<br/>JWT, OAuth 2.1"]
-        user["user-service :8082<br/>профили, RBAC"]
-        product["product-service :8083<br/>каталог"]
-        inventory["inventory-service :8084<br/>остатки и резервы"]
-        order["order-service :8085<br/>SAGA-оркестратор"]
-        notification["notification-service :8088<br/>email"]
-    end
+    kafka[["Apache Kafka<br/>+ Schema Registry"]]
 
-    kafka{{"Apache Kafka (KRaft)<br/>+ Schema Registry"}}
-
-    subgraph storage["Хранилища"]
+    subgraph data["Хранилища"]
+        direction LR
         pg[("PostgreSQL ×4<br/>auth · user · order · inventory")]
         mongo[("MongoDB<br/>product · notification")]
-        redis[("Redis<br/>rate-limit")]
+        redis[("Redis<br/>rate-limit · анти-спам")]
     end
 
-    client -->|REST| gw
-    client -.->|gRPC + JWT| order
-    gw --> auth & user & product & order & inventory
+    client --> gw
+    gw --> auth
+    gw --> user
+    gw --> product
+    gw --> inventory
+    gw --> order
 
-    order -->|gRPC mTLS| inventory
-    order -->|gRPC mTLS| product
+    client ==>|"gRPC: стрим статусов"| order
+    order ==>|"gRPC: цены"| product
+    order ==>|"gRPC: резерв"| inventory
 
-    auth & user & order & inventory <-->|Avro| kafka
-    kafka --> notification
+    auth <-.-> kafka
+    user <-.-> kafka
+    order <-.-> kafka
+    inventory <-.-> kafka
+    kafka -.-> notification
 
-    auth & user & order & inventory --- pg
-    product & notification --- mongo
-    gw & notification --- redis
+    notification -.-> client
+
+    auth --- pg
+    user --- pg
+    order --- pg
+    inventory --- pg
+    product --- mongo
+    notification --- mongo
+    gw --- redis
+    notification --- redis
 ```
+
+Сплошная стрелка — REST, толстая — gRPC под mTLS, пунктир — асинхронный обмен через Kafka.
+Линия без стрелки — сервис и его хранилище (общих баз нет: у каждого своё).
+
+На схеме не показаны две вещи. Подписи токенов **все сервисы проверяют локально**, забирая
+публичный ключ у auth-service по JWKS и кэшируя его. И `client ==> order-service` идёт **мимо шлюза**:
+gRPC-стрим не переживает HTTP-прокси, финальный статус вызова едет в трейлерах HTTP/2
+([ADR 0008](docs/adr/0008-grpc-entrypoint-and-order-ownership.md)).
 
 | Сервис | Назначение | Хранилище | Протоколы | Порт |
 | --- | --- | --- | --- | --- |
 | **api-gateway** | единая точка входа, JWT-гейт, rate-limiting | — | REST | 8087 |
 | **auth-service** | регистрация, JWT (RS256), OAuth 2.1, JWKS | PostgreSQL | REST | 8086 |
 | **user-service** | профили, роли (RBAC) | PostgreSQL | REST, Kafka | 8082 |
-| **product-service** | каталог товаров, поиск | MongoDB | REST, gRPC, Kafka | 8083 / 9089 |
+| **product-service** | каталог товаров, поиск | MongoDB | REST, gRPC | 8083 / 9089 |
 | **inventory-service** | остатки, резервирование | PostgreSQL | REST, gRPC, Kafka | 8084 / 9090 |
 | **order-service** | жизненный цикл заказа, SAGA, Outbox | PostgreSQL | REST, gRPC, Kafka | 8085 / 9091 |
 | **notification-service** | письма о заказах и регистрации | MongoDB | Kafka | 8088 |
