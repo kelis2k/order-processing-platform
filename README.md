@@ -176,6 +176,7 @@ cd order-processing-platform
 
 make dev-up      # соберёт jar'ы и образы, поднимет весь стек
 ./demo.sh        # сквозной сценарий: 39 проверок, от регистрации до COMPLETED
+                 # в конце печатает, что создано и куда смотреть (Jaeger, MailHog, Grafana)
 make dev-down    # остановить (данные сохранятся; полный сброс — make dev-reset)
 ```
 

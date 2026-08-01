@@ -6,7 +6,8 @@
 #   VERBOSE=1 ./demo.sh       + тела запросов и ответов
 #
 # Переменные: BASE_URL (http://localhost:8087), MAILHOG_URL (http://localhost:8025),
-#             ADMIN_EMAIL (admin@orders.local), PASSWORD (Password1!)
+#             ADMIN_EMAIL (admin@orders.local), PASSWORD (Password1!),
+#             JAEGER_URL, GRAFANA_URL, KAFKA_UI_URL, SWAGGER_URL — адреса в блоке «куда смотреть»
 
 set -uo pipefail
 
@@ -15,6 +16,11 @@ MAILHOG_URL="${MAILHOG_URL:-http://localhost:8025}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@orders.local}"
 PASSWORD="${PASSWORD:-Password1!}"
 VERBOSE="${VERBOSE:-}"
+
+JAEGER_URL="${JAEGER_URL:-http://localhost:16686}"
+GRAFANA_URL="${GRAFANA_URL:-http://localhost:3000}"
+KAFKA_UI_URL="${KAFKA_UI_URL:-http://localhost:8080}"
+SWAGGER_URL="${SWAGGER_URL:-http://localhost:8083/swagger-ui.html}"
 
 RUN_ID="$(date +%s)"
 BUYER_EMAIL="buyer-${RUN_ID}@example.com"
@@ -254,8 +260,21 @@ expect "подтверждение получения покупателем" 20
 [[ "$(jq -r '.status' "$RESP")" == "COMPLETED" ]] && pass "статус COMPLETED" || fail "статус после подтверждения"
 
 step "9. Уведомления"
-buyer_got_mails() { [[ "$(mails_to "$BUYER_EMAIL")" -ge 6 ]]; }
-wait_for "покупателю ушли письма на каждый статус (подтверждение + приём + 4 перехода)" 60 buyer_got_mails
+buyer_got_mails() { [[ "$(mails_to "$BUYER_EMAIL")" -ge 5 ]]; }
+wait_for "покупателю ушли письма (6-е может быть подавлено анти-спамом, ADR 0010)" 60 buyer_got_mails
+
+printf "\n${Y}=== Что создано ===${N}\n"
+printf "  покупатель  %s\n" "$BUYER_EMAIL"
+printf "  товар       %s\n" "${PRODUCT_ID:-—}"
+printf "  заказ       %s  (%s)\n" "${ORDER_ID:-—}" "$(jq -r '.status // "—"' "$RESP" 2>/dev/null)"
+
+printf "\n${Y}=== Куда смотреть ===${N}\n"
+printf "  письма покупателя   %s/#search?kind=to&query=%s\n" "$MAILHOG_URL" "$BUYER_EMAIL"
+printf "  сквозной трейс      %s/search?service=api-gateway&operation=POST%%20%%2Forders&lookback=1h\n" "$JAEGER_URL"
+printf "  метрики и дашборды  %s/dashboards\n" "$GRAFANA_URL"
+printf "  топики и сообщения  %s\n" "$KAFKA_UI_URL"
+printf "  API каталога        %s\n" "$SWAGGER_URL"
+printf "  заказ по API        curl -H 'Authorization: Bearer <token>' %s/orders/%s\n" "$BASE_URL" "${ORDER_ID:-<id>}"
 
 printf "\n${Y}=== Итог ===${N}\n"
 printf "  пройдено: ${G}%d${N}\n" "$PASSED"
