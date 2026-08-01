@@ -7,5 +7,5 @@ public interface InventoryService {
     int getAvailableQuantity(String productId);
     void reserve(String orderId, String productId, int quantity);
     void reserve(String orderId, java.util.List<ReservationItem> items);
-    void release(String orderId, String productId, int quantity);
+    void commitReservation(String orderId);
 }

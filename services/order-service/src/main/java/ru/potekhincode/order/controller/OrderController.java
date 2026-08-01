@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,6 +43,28 @@ public class OrderController {
                                   @AuthenticationPrincipal Jwt jwt
     ) {
         return orderService.findById(id, Caller.from(jwt));
+    }
+
+    @PostMapping("/{id}/pay")
+    public OrderResponse pay(@PathVariable UUID id,
+                             @AuthenticationPrincipal Jwt jwt
+    ) {
+        return orderService.pay(id, Caller.from(jwt));
+    }
+
+    @PostMapping("/{id}/ship")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    public OrderResponse ship(@PathVariable UUID id,
+                              @AuthenticationPrincipal Jwt jwt
+    ) {
+        return orderService.ship(id, Caller.from(jwt));
+    }
+
+    @PostMapping("/{id}/complete")
+    public OrderResponse complete(@PathVariable UUID id,
+                                  @AuthenticationPrincipal Jwt jwt
+    ) {
+        return orderService.complete(id, Caller.from(jwt));
     }
 
     @GetMapping

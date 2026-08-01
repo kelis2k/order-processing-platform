@@ -84,9 +84,10 @@ public class InventoryServiceImpl implements InventoryService {
         }
     }
 
+
     @Override
-    public void release(String orderId, String productId, int quantity) {
-        executeWithRetry(() -> txOperations.releaseOnce(orderId, productId, quantity), "release");
+    public void commitReservation(String orderId) {
+        executeWithRetry(() -> txOperations.commitReservation(orderId), "commit");
     }
 
     /**

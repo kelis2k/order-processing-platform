@@ -6,4 +6,6 @@ import ru.potekhincode.inventory.model.Reservation;
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
 
     boolean existsByOrderId(String orderId);
+
+    java.util.Optional<Reservation> findByOrderId(String orderId);
 }

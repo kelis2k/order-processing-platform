@@ -135,6 +135,35 @@ public class OrderServiceImpl implements OrderService {
         return orders.map(orderMapper::toResponse);
     }
 
+    @Override
+    @Transactional
+    public OrderResponse pay(UUID id, Caller caller) {
+        return advance(id, caller, OrderStatus.PAID);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse ship(UUID id, Caller caller) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new OrderNotFoundException(id));
+        transition(order, OrderStatus.SHIPPED, null);
+        log.info("Order {} moved to {} by {}", id, OrderStatus.SHIPPED, caller.userId());
+        return orderMapper.toResponse(order);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse complete(UUID id, Caller caller) {
+        return advance(id, caller, OrderStatus.COMPLETED);
+    }
+
+    private OrderResponse advance(UUID id, Caller caller, OrderStatus target) {
+        Order order = requireVisible(id, caller);
+        transition(order, target, null);
+        log.info("Order {} moved to {} by {}", id, target, caller.userId());
+        return orderMapper.toResponse(order);
+    }
+
     @Transactional
     public void transition(Order order, OrderStatus target, String reason) {
 

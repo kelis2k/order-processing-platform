@@ -85,23 +85,4 @@ class InventoryGrpcServiceIT extends AbstractIntegrationTest {
         assertThat(unchanged.getReserved()).isZero();
     }
 
-    @Test
-    void releaseReturnsReservedStock() {
-        stub.reserve(ReserveRequest.newBuilder()
-                .setOrderId(ORDER_ID)
-                .setProductId(PRODUCT_ID)
-                .setQuantity(4)
-                .build());
-
-        ReleaseResponse response = stub.release(ReleaseRequest.newBuilder()
-                .setOrderId(ORDER_ID)
-                .setProductId(PRODUCT_ID)
-                .setQuantity(4)
-                .build());
-
-        assertThat(response.getSuccess()).isTrue();
-        Inventory restored = inventoryRepository.findByProductId(PRODUCT_ID).orElseThrow();
-        assertThat(restored.getAvailable()).isEqualTo(10);
-        assertThat(restored.getReserved()).isZero();
-    }
 }

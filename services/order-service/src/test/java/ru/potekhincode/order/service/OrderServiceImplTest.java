@@ -411,4 +411,90 @@ class OrderServiceImplTest {
         verify(outboxRepository, never()).save(any());    // повторное событие не публикуем
         assertThat(saga.getState()).isEqualTo(SagaStatus.CANCELLED);
     }
+
+    @Test
+    void payMovesReservedOrderToPaid() {
+        Order order = order(USER_ID);
+        order.setStatus(OrderStatus.RESERVED);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderMapper.toResponse(order)).thenReturn(
+                new OrderResponse(ORDER_ID, USER_ID, OrderStatus.PAID, null, List.of(), null));
+
+        orderService.pay(ORDER_ID, owner());
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
+        verify(outboxRepository).save(any());
+    }
+
+    @Test
+    void shipMovesPaidOrderToShipped() {
+        Order order = order(USER_ID);
+        order.setStatus(OrderStatus.PAID);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderMapper.toResponse(order)).thenReturn(
+                new OrderResponse(ORDER_ID, USER_ID, OrderStatus.SHIPPED, null, List.of(), null));
+
+        orderService.ship(ORDER_ID, admin());
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.SHIPPED);
+    }
+
+    @Test
+    void completeMovesShippedOrderToCompleted() {
+        Order order = order(USER_ID);
+        order.setStatus(OrderStatus.SHIPPED);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderMapper.toResponse(order)).thenReturn(
+                new OrderResponse(ORDER_ID, USER_ID, OrderStatus.COMPLETED, null, List.of(), null));
+
+        orderService.complete(ORDER_ID, owner());
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.COMPLETED);
+    }
+
+    @Test
+    void payRejectsOrderThatIsStillNew() {
+        Order order = order(USER_ID);
+        order.setStatus(OrderStatus.NEW);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.pay(ORDER_ID, owner()))
+                .isInstanceOf(InvalidStatusTransitionException.class);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.NEW);
+        verify(outboxRepository, never()).save(any());
+    }
+
+    @Test
+    void payRejectsRepeatedCall() {
+        Order order = order(USER_ID);
+        order.setStatus(OrderStatus.PAID);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.pay(ORDER_ID, owner()))
+                .isInstanceOf(InvalidStatusTransitionException.class);
+    }
+
+    @Test
+    void payDeniedForForeignOrder() {
+        Order order = order(OTHER_USER_ID);
+        order.setStatus(OrderStatus.RESERVED);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.pay(ORDER_ID, owner()))
+                .isInstanceOf(OrderAccessDeniedException.class);
+    }
+
+    @Test
+    void shipAllowedForManagerWhoIsNotOwner() {
+        Order order = order(OTHER_USER_ID);
+        order.setStatus(OrderStatus.PAID);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderMapper.toResponse(order)).thenReturn(
+                new OrderResponse(ORDER_ID, OTHER_USER_ID, OrderStatus.SHIPPED, null, List.of(), null));
+
+        orderService.ship(ORDER_ID, new Caller("manager-1", "ROLE_MANAGER"));
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.SHIPPED);
+    }
 }

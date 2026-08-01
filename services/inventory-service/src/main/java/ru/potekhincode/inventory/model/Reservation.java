@@ -2,6 +2,8 @@ package ru.potekhincode.inventory.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -26,6 +28,10 @@ public class Reservation {
 
     @Column(name = "order_id", nullable = false, unique = true, length = 64)
     private String orderId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private ReservationState state = ReservationState.RESERVED;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)

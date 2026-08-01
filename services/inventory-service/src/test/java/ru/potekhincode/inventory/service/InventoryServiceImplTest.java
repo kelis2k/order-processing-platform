@@ -183,28 +183,7 @@ class InventoryServiceImplTest {
         verify(txOperations, times(3)).reserveOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
     }
 
-    @Test
-    void releaseRetriesOnOptimisticLockThenSucceeds() {
-        doThrow(new ObjectOptimisticLockingFailureException(Inventory.class, 1L))
-                .doNothing()
-                .when(txOperations).releaseOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
 
-        inventoryService.release(ORDER_ID, PRODUCT_ID, QUANTITY);
-
-        verify(txOperations, times(2)).releaseOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
-    }
-
-    @Test
-    void releaseFailsAfterExhaustingRetries() {
-        doThrow(new ObjectOptimisticLockingFailureException(Inventory.class, 1L))
-                .when(txOperations).releaseOnce(anyString(), anyString(), anyInt());
-
-        assertThatThrownBy(() -> inventoryService.release(ORDER_ID, PRODUCT_ID, QUANTITY))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("release");
-
-        verify(txOperations, times(3)).releaseOnce(ORDER_ID, PRODUCT_ID, QUANTITY);
-    }
 
     @Test
     void reserveAllSkipsSilentlyOnDuplicateOrder() {
@@ -247,5 +226,25 @@ class InventoryServiceImplTest {
 
         assertThatThrownBy(() -> inventoryService.reserve(ORDER_ID, items))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void commitReservationDelegatesToTransactionalOps() {
+        doNothing().when(txOperations).commitReservation(ORDER_ID);
+
+        inventoryService.commitReservation(ORDER_ID);
+
+        verify(txOperations, times(1)).commitReservation(ORDER_ID);
+    }
+
+    @Test
+    void commitReservationRetriesOnOptimisticLock() {
+        doThrow(new ObjectOptimisticLockingFailureException(Inventory.class, 1L))
+                .doNothing()
+                .when(txOperations).commitReservation(ORDER_ID);
+
+        inventoryService.commitReservation(ORDER_ID);
+
+        verify(txOperations, times(2)).commitReservation(ORDER_ID);
     }
 }

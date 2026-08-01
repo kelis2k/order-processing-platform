@@ -225,9 +225,37 @@ RESERVED="$(jq -r '.reserved' "$RESP")"
   && pass "склад: доступно 48, зарезервировано 2" \
   || fail "склад: доступно $AVAILABLE, зарезервировано $RESERVED (ожидали 48/2)"
 
-step "8. Уведомления"
-buyer_got_two_mails() { [[ "$(mails_to "$BUYER_EMAIL")" -ge 3 ]]; }
-wait_for "покупателю ушли письма (подтверждение + заказ принят + статус)" 60 buyer_got_two_mails
+step "8. Полный жизненный цикл заказа"
+expect "оплата покупателем" 200 "$(req POST "/orders/${ORDER_ID}/pay" '' "$BUYER_TOKEN")"
+[[ "$(jq -r '.status' "$RESP")" == "PAID" ]] && pass "статус PAID" || fail "статус после оплаты: $(jq -r '.status' "$RESP")"
+expect "повторная оплата отклонена" 409 "$(req POST "/orders/${ORDER_ID}/pay" '' "$BUYER_TOKEN")"
+expect "отгрузка покупателем запрещена" 403 "$(req POST "/orders/${ORDER_ID}/ship" '' "$BUYER_TOKEN")"
+
+STRANGER_ID="$(jwt_claim "$STRANGER_TOKEN" '.sub')"
+expect "админ назначает роль MANAGER" 200 \
+  "$(req PUT "/users/${STRANGER_ID}/role" '{"role":"ROLE_MANAGER"}' "$ADMIN_TOKEN")"
+
+manager_has_role() {
+  MANAGER_TOKEN="$(login "$STRANGER_EMAIL")" || return 1
+  [[ "$(jwt_claim "$MANAGER_TOKEN" '.role')" == "ROLE_MANAGER" ]]
+}
+wait_for "роль ROLE_MANAGER доехала до auth (user.role-changed)" 90 manager_has_role
+
+expect "отгрузка менеджером" 200 "$(req POST "/orders/${ORDER_ID}/ship" '' "$MANAGER_TOKEN")"
+[[ "$(jq -r '.status' "$RESP")" == "SHIPPED" ]] && pass "статус SHIPPED" || fail "статус после отгрузки"
+
+shipped_stock_committed() {
+  req GET "/inventory/${PRODUCT_ID}" '' "$ADMIN_TOKEN" >/dev/null
+  [[ "$(jq -r '.available' "$RESP")" == "48" && "$(jq -r '.reserved' "$RESP")" == "0" ]]
+}
+wait_for "склад списал резерв: доступно 48, зарезервировано 0" 60 shipped_stock_committed
+
+expect "подтверждение получения покупателем" 200 "$(req POST "/orders/${ORDER_ID}/complete" '' "$BUYER_TOKEN")"
+[[ "$(jq -r '.status' "$RESP")" == "COMPLETED" ]] && pass "статус COMPLETED" || fail "статус после подтверждения"
+
+step "9. Уведомления"
+buyer_got_mails() { [[ "$(mails_to "$BUYER_EMAIL")" -ge 6 ]]; }
+wait_for "покупателю ушли письма на каждый статус (подтверждение + приём + 4 перехода)" 60 buyer_got_mails
 
 printf "\n${Y}=== Итог ===${N}\n"
 printf "  пройдено: ${G}%d${N}\n" "$PASSED"

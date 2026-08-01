@@ -9,7 +9,6 @@ option java_outer_classname = "InventoryServiceProto";
 service InventoryService {
   rpc CheckAvailability (CheckAvailabilityRequest) returns (CheckAvailabilityResponse);
   rpc Reserve           (ReserveRequest)           returns (ReserveResponse);
-  rpc Release           (ReleaseRequest)            returns (ReleaseResponse);
 }
 
 message CheckAvailabilityRequest {
@@ -31,14 +30,4 @@ message ReserveRequest {
 message ReserveResponse {
   bool   success = 1;
   string message = 2;
-}
-
-message ReleaseRequest {
-  string order_id   = 1;
-  string product_id = 2;
-  int32  quantity   = 3;
-}
-
-message ReleaseResponse {
-  bool success = 1;
 }

@@ -43,15 +43,4 @@ public class InventoryGrpcService extends InventoryServiceGrpc.InventoryServiceI
         responseObserver.onCompleted();
     }
 
-    @Override
-    public void release(ReleaseRequest request,
-                        StreamObserver<ReleaseResponse> responseObserver) {
-        try {
-            inventoryService.release(request.getOrderId(), request.getProductId(), request.getQuantity());
-            responseObserver.onNext(ReleaseResponse.newBuilder().setSuccess(true).build());
-        } catch (Exception e) {
-            responseObserver.onNext(ReleaseResponse.newBuilder().setSuccess(false).build());
-        }
-        responseObserver.onCompleted();
-    }
 }

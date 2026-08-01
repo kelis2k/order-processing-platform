@@ -17,6 +17,12 @@ public interface OrderService {
 
     Page<OrderResponse> list(Pageable pageable, Caller caller);
 
+    OrderResponse pay(UUID id, Caller caller);
+
+    OrderResponse ship(UUID id, Caller caller);
+
+    OrderResponse complete(UUID id, Caller caller);
+
     void onInventoryReserved(UUID orderId, boolean success, String reason);
 
     Order requireVisible(UUID id, Caller caller);

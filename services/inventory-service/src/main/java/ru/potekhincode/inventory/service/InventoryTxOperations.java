@@ -6,7 +6,10 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.potekhincode.inventory.exception.InsufficientStockException;
 import ru.potekhincode.inventory.model.Inventory;
 import ru.potekhincode.inventory.model.Reservation;
+import ru.potekhincode.inventory.model.ReservationLine;
+import ru.potekhincode.inventory.model.ReservationState;
 import ru.potekhincode.inventory.repository.InventoryRepository;
+import ru.potekhincode.inventory.repository.ReservationLineRepository;
 import ru.potekhincode.inventory.repository.ReservationRepository;
 
 /**
@@ -24,6 +27,7 @@ public class InventoryTxOperations {
 
     private final InventoryRepository inventoryRepository;
     private final ReservationRepository reservationRepository;
+    private final ReservationLineRepository reservationLineRepository;
 
     @Transactional
     public void reserveOnce(String orderId, String productId, int quantity) {
@@ -50,6 +54,10 @@ public class InventoryTxOperations {
         reservationRepository.saveAndFlush(new Reservation(orderId));
 
         for (ReservationItem item : items) {
+            reservationLineRepository.save(new ReservationLine(orderId, item.productId(), item.quantity()));
+        }
+
+        for (ReservationItem item : items) {
             Inventory inventory = inventoryRepository.findByProductId(item.productId())
                     .orElseThrow(() -> new InsufficientStockException(item.productId(), item.quantity(), 0));
 
@@ -63,13 +71,22 @@ public class InventoryTxOperations {
         }
     }
 
-    @Transactional
-    public void releaseOnce(String orderId, String productId, int quantity) {
-        Inventory inventory = inventoryRepository.findByProductId(productId)
-                .orElseThrow(() -> new IllegalStateException("Inventory not found for product: " + productId));
 
-        inventory.setReserved(Math.max(0, inventory.getReserved() - quantity));
-        inventory.setAvailable(inventory.getAvailable() + quantity);
-        inventoryRepository.save(inventory);
+    @Transactional
+    public void commitReservation(String orderId) {
+        Reservation reservation = reservationRepository.findByOrderId(orderId).orElse(null);
+        if (reservation == null || reservation.getState() != ReservationState.RESERVED) {
+            return;
+        }
+
+        for (ReservationLine line : reservationLineRepository.findByOrderId(orderId)) {
+            inventoryRepository.findByProductId(line.getProductId()).ifPresent(inventory -> {
+                inventory.setReserved(Math.max(0, inventory.getReserved() - line.getQuantity()));
+                inventoryRepository.save(inventory);
+            });
+        }
+
+        reservation.setState(ReservationState.COMMITTED);
+        reservationRepository.save(reservation);
     }
 }
