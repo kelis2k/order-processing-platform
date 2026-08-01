@@ -1,0 +1,114 @@
+name: k3d deploy
+description: Поднимает k3d-кластер, кладёт dev-секреты, ставит umbrella-чарт и прогоняет smoke-тест
+
+inputs:
+  cluster:
+    description: Имя k3d-кластера
+    required: true
+  namespace:
+    description: Namespace для релиза
+    required: true
+  image-tag:
+    description: Тег образов в GHCR (обычно sha коммита)
+    required: true
+  extra-values:
+    description: Дополнительный values-файл поверх values-ci.yaml
+    required: false
+    default: ''
+  diagnostics-name:
+    description: Имя артефакта с диагностикой при падении
+    required: false
+    default: k3d-diagnostics
+
+runs:
+  using: composite
+  steps:
+    - name: Install k3d
+      shell: bash
+      run: |
+        curl -sSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.9.0 bash
+        k3d version
+        kubectl version --client
+        helm version --short
+
+    - name: Create cluster
+      shell: bash
+      run: |
+        k3d cluster create "${{ inputs.cluster }}" \
+          --servers 1 --agents 0 \
+          -p "8087:80@loadbalancer" \
+          --wait
+        kubectl get nodes
+
+    - name: Generate dev TLS certificates
+      shell: bash
+      run: ./infra/tls/gen-certs.sh
+
+    - name: Generate dev secrets (JWT, DB)
+      shell: bash
+      run: ./infra/secrets/gen-dev-secrets.sh
+
+    - name: Apply secrets to cluster
+      shell: bash
+      run: ./infra/secrets/apply-dev-secrets.sh "${{ inputs.namespace }}"
+
+    - name: Helm release
+      shell: bash
+      run: |
+        helm dependency update helm/platform
+        VALUES="-f helm/platform/values-ci.yaml"
+        if [ -n "${{ inputs.extra-values }}" ]; then
+          VALUES="$VALUES -f ${{ inputs.extra-values }}"
+        fi
+        SETS=""
+        for s in api-gateway auth-service user-service product-service \
+                 inventory-service order-service notification-service; do
+          SETS="$SETS --set-string $s.image.tag=${{ inputs.image-tag }}"
+        done
+        helm upgrade --install platform helm/platform \
+          -n "${{ inputs.namespace }}" \
+          $VALUES \
+          $SETS \
+          --wait --timeout 10m --atomic
+
+    - name: Show cluster state
+      shell: bash
+      run: |
+        helm status platform -n "${{ inputs.namespace }}"
+        kubectl get pods -n "${{ inputs.namespace }}" -o wide
+
+    - name: Port-forward MailHog
+      shell: bash
+      run: |
+        kubectl port-forward -n "${{ inputs.namespace }}" svc/mailhog 8025:8025 &
+        for _ in $(seq 1 30); do
+          curl -sf http://localhost:8025/api/v2/messages >/dev/null && break
+          sleep 1
+        done
+
+    - name: Smoke tests
+      shell: bash
+      run: ./demo.sh
+
+    - name: Diagnostics on failure
+      if: failure()
+      shell: bash
+      run: |
+        mkdir -p diag
+        NS="${{ inputs.namespace }}"
+        kubectl get all -n "$NS" -o wide > diag/get-all.txt 2>&1 || true
+        kubectl get events -n "$NS" --sort-by=.lastTimestamp > diag/events.txt 2>&1 || true
+        kubectl describe pods -n "$NS" > diag/describe.txt 2>&1 || true
+        for p in $(kubectl get pods -n "$NS" -o name); do
+          n=$(basename "$p")
+          kubectl logs "$p" -n "$NS" --all-containers --tail=300 > "diag/$n.log" 2>&1 || true
+          kubectl logs "$p" -n "$NS" --all-containers --previous --tail=300 > "diag/$n.prev.log" 2>&1 || true
+        done
+
+    - name: Upload diagnostics
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.diagnostics-name }}
+        path: diag
+        retention-days: 3
