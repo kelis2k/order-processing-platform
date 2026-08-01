@@ -22,6 +22,15 @@ val jacocoExclusions = listOf(
     "**/*Application*",
 )
 
+val generateDevTlsCerts = tasks.register<Exec>("generateDevTlsCerts") {
+    description = "Выпускает dev-PKI для gRPC, если его ещё нет (каталог в .gitignore)"
+    val ca = layout.projectDirectory.file(".secrets/dev/tls/ca.crt").asFile
+    outputs.file(ca)
+    onlyIf { !ca.exists() }
+    workingDir = layout.projectDirectory.asFile
+    commandLine("bash", "infra/tls/gen-certs.sh")
+}
+
 subprojects {
     apply(plugin = "java")
     apply(plugin = "io.spring.dependency-management")
@@ -56,6 +65,7 @@ subprojects {
 
     tasks.withType<Test> {
         useJUnitPlatform()
+        dependsOn(generateDevTlsCerts)
     }
 
     tasks.withType<JavaCompile>().configureEach {

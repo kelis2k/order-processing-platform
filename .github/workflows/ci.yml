@@ -24,9 +24,6 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: Generate dev TLS certificates
-        run: ./infra/tls/gen-certs.sh
-
       - name: Checkstyle
         run: ./gradlew checkstyleMain checkstyleTest --no-daemon
 

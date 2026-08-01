@@ -114,11 +114,13 @@ services:
       start_period: 30s
 
   # ---------------------------------------------------------------------------
-  # Confluent Schema Registry — реестр Avro-схем. Подключается ко всем брокерам.
+  # Создаёт топик _schemas до старта Schema Registry: на пустом кластере он
+  # создаёт его сам и тут же пишет в него, пока метаданные не разъехались
+  # по трём брокерам, — и падает с UnknownTopicOrPartitionException.
   # ---------------------------------------------------------------------------
-  schema-registry:
-    image: confluentinc/cp-schema-registry:7.6.1
-    container_name: schema-registry
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka-init
     depends_on:
       kafka-1:
         condition: service_healthy
@@ -126,6 +128,28 @@ services:
         condition: service_healthy
       kafka-3:
         condition: service_healthy
+    command:
+      - bash
+      - -c
+      - |
+        kafka-topics --bootstrap-server kafka-1:29092 \
+          --create --if-not-exists --topic _schemas \
+          --partitions 1 --replication-factor 3 \
+          --config cleanup.policy=compact
+        kafka-topics --bootstrap-server kafka-1:29092 --describe --topic _schemas
+    restart: "no"
+    networks: [backend]
+
+  # ---------------------------------------------------------------------------
+  # Confluent Schema Registry — реестр Avro-схем. Подключается ко всем брокерам.
+  # ---------------------------------------------------------------------------
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.1
+    container_name: schema-registry
+    restart: on-failure
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
     ports:
       - "8081:8081"
     environment:
