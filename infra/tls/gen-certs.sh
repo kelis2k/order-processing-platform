@@ -89,10 +89,11 @@ gen_leaf order-client order-service \
   "DNS:order-service" \
   "clientAuth"
 
-chmod 600 "$OUT"/*.key
+chmod 644 "$OUT"/*.key
 rm -f "$OUT"/*.srl
 
 echo "готово: $OUT (в .gitignore — приватные ключи в репозиторий не попадут)"
+echo "права 644: ключи монтируются в контейнеры и читаются пользователем appuser (uid 100)"
 
 
 

@@ -13,7 +13,8 @@ else
   rm -f "$OUT/jwt/jwt-private.pem" "$OUT/jwt/jwt-public.pem"
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$OUT/jwt/jwt-private.pem" 2>/dev/null
   openssl pkey -in "$OUT/jwt/jwt-private.pem" -pubout -out "$OUT/jwt/jwt-public.pem"
-  echo "✔ JWT-ключи выпущены: $OUT/jwt"
+  chmod 644 "$OUT/jwt/jwt-private.pem" "$OUT/jwt/jwt-public.pem"
+  echo "✔ JWT-ключи выпущены: $OUT/jwt (права 644 — файл читает appuser, uid 100, внутри контейнера)"
 fi
 
 write_db_env() {

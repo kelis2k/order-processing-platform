@@ -47,7 +47,7 @@ dev-logs: ## Следить за логами всех контейнеров
 dev-reset: ## Остановить стек и УДАЛИТЬ все volumes (полный сброс данных)
 	$(COMPOSE) down -v
 
-k3d-up: ## [9.3] Создать k3d-кластер и развернуть платформу
+k3d-up: tls-certs docker-images ## [9.3] Создать k3d-кластер и развернуть платформу
 	@test -f $(TLS_SRC)/ca.crt || { echo "нет сертификатов — сначала make tls-certs"; exit 1; }
 	@k3d cluster list $(K3D_CLUSTER) >/dev/null 2>&1 \
 	  || k3d cluster create $(K3D_CLUSTER) --servers 1 --agents 0 -p "8087:80@loadbalancer" --wait

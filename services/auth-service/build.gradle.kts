@@ -1,3 +1,6 @@
+import java.security.KeyPairGenerator
+import java.util.Base64
+
 plugins {
     alias(libs.plugins.spring.boot)
 }
@@ -34,6 +37,28 @@ dependencies {
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.postgres)
     testImplementation(libs.testcontainers.kafka)
+}
+
+val generateDevJwtKeys = tasks.register("generateDevJwtKeys") {
+    description = "Выпускает dev-ключи RS256, если их ещё нет (каталог в .gitignore)"
+    val keysDir = layout.projectDirectory.dir("src/main/resources/keys").asFile
+    outputs.dir(keysDir)
+    onlyIf { !keysDir.resolve("jwt-private.pem").exists() }
+    doLast {
+        keysDir.mkdirs()
+        val pair = KeyPairGenerator.getInstance("RSA")
+            .apply { initialize(2048) }
+            .generateKeyPair()
+        val encoder = Base64.getMimeEncoder(64, "\n".toByteArray())
+        fun pem(label: String, der: ByteArray) =
+            "-----BEGIN $label-----\n${encoder.encodeToString(der)}\n-----END $label-----\n"
+        keysDir.resolve("jwt-private.pem").writeText(pem("PRIVATE KEY", pair.private.encoded))
+        keysDir.resolve("jwt-public.pem").writeText(pem("PUBLIC KEY", pair.public.encoded))
+    }
+}
+
+tasks.named("processResources") {
+    dependsOn(generateDevJwtKeys)
 }
 
 tasks.withType<Test> {

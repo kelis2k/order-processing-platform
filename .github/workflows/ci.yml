@@ -24,16 +24,6 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: Make gradlew executable
-        run: chmod +x gradlew
-
-      - name: Generate dev JWT keys
-        run: |
-          KEYS=services/auth-service/src/main/resources/keys
-          mkdir -p "$KEYS"
-          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$KEYS/jwt-private.pem"
-          openssl pkey -in "$KEYS/jwt-private.pem" -pubout -out "$KEYS/jwt-public.pem"
-
       - name: Generate dev TLS certificates
         run: ./infra/tls/gen-certs.sh
 
@@ -201,8 +191,6 @@ jobs:
           path: .dependency-check-data
           key: nvd-${{ runner.os }}-${{ steps.nvddate.outputs.date }}
           restore-keys: nvd-${{ runner.os }}-
-
-      - run: chmod +x gradlew
 
       - name: OWASP Dependency-Check
         env:
